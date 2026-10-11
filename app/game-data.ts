@@ -197,7 +197,7 @@ export function createInitialGameState(): GameState {
     xp: 240,
     streak: 3,
     difficulty: "Beginner",
-    villageName: "Patchwork Valley",
+    villageName: "Vibe Control District",
     releaseApproved: false,
     objects: [
       { id: "guild", kind: "guild", name: "Builders’ Guild", category: "building", x: 730, y: 390, level: 4, built: true, fixed: true },

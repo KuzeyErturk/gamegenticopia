@@ -1,8 +1,8 @@
-# Patchwork Valley
+# Vibe Control District
 
-![Patchwork Valley](public/og.png)
+![Vibe Control District](public/og.png)
 
-Patchwork Valley turns “the agent changed some files” into something you can actually explain.
+Vibe Control District turns “the agent changed some files” into something you can actually explain.
 
 Each coding agent owns a small worksite in the village. When that agent changes code, its worksite produces a three-choice checkpoint. Answer correctly and the building improves. Clear every active worksite and the Launch Tower opens for one final question about the release as a whole.
 
@@ -83,7 +83,7 @@ local watcher collects the git diff
               ↓
 question generator creates a checkpoint
               ↓
-Patchwork Valley receives the event
+Vibe Control District receives the event
 ```
 
 The companion should:
@@ -139,7 +139,7 @@ app/api/village/   database load and save endpoint
 app/globals.css    village map, buildings, panels, and responsive layout
 app/layout.tsx     page metadata and social sharing settings
 db/                D1 schema and village state storage
-public/og.png      Patchwork Valley share image
+public/og.png      Vibe Control District share image
 worker/            Cloudflare-compatible server entry
 ```
 
@@ -154,4 +154,4 @@ The accepted architecture for the real product is documented in [`docs/LOCAL_FIR
 - a review screen showing what the player understood before deployment
 - optional team mode, where different developers clear different worksites
 
-Patchwork Valley should slow an agent down only when understanding is missing—not when the developer already knows exactly what changed.
+Vibe Control District should slow an agent down only when understanding is missing—not when the developer already knows exactly what changed.

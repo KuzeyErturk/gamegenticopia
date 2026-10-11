@@ -1,8 +1,8 @@
-# Patchwork Valley — Oyun Rehberi / Game Guide
+# Vibe Control District — Oyun Rehberi / Game Guide
 
-Bu dosya Patchwork Valley’nin mevcut prototipinin nasıl çalıştığını açıklar.
+Bu dosya Vibe Control District’in mevcut prototipinin nasıl çalıştığını açıklar.
 
-This document explains how the current Patchwork Valley prototype works.
+This document explains how the current Vibe Control District prototype works.
 
 ---
 
@@ -10,7 +10,7 @@ This document explains how the current Patchwork Valley prototype works.
 
 ## Oyunun ana fikri
 
-Patchwork Valley, AI ajanlarının yaptığı kod değişikliklerini bir köy kurma oyununa dönüştürür.
+Vibe Control District, AI ajanlarının yaptığı kod değişikliklerini bir köy kurma oyununa dönüştürür.
 
 Temel akış şöyledir:
 
@@ -296,7 +296,7 @@ Kısaca:
 
 ## Core idea
 
-Patchwork Valley turns code changes made by AI agents into a village-building game.
+Vibe Control District turns code changes made by AI agents into a village-building game.
 
 The basic loop is:
 

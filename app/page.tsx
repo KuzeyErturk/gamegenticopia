@@ -372,7 +372,7 @@ export default function Home() {
     setAssigningOrderId(null);
     setPlacementItemId(null);
     setArrangeMode(false);
-    setToast("Fresh valley loaded.");
+    setToast("Fresh district loaded.");
   }
 
   function openLaunchTower() {
@@ -402,7 +402,7 @@ export default function Home() {
           <div className={`release-card ${game.releaseApproved ? "approved" : ""}`}>
             <div className="release-seal">{game.releaseApproved ? <Trophy size={34} /> : <ShieldCheck size={34} />}</div>
             <p className="eyebrow">RELEASE INSPECTION</p>
-            <h3>{game.releaseApproved ? "The valley is shipping" : "One final understanding check"}</h3>
+            <h3>{game.releaseApproved ? "The district is shipping" : "One final understanding check"}</h3>
             <p>{game.releaseApproved ? "Every core work order has been understood and the release is approved." : "Explain how the completed agent work fits together before opening the tower."}</p>
           </div>
           {!game.releaseApproved && selectedQuestion && renderQuiz(selectedQuestion, "Final question")}
@@ -476,7 +476,7 @@ export default function Home() {
   return (
     <main className="game-shell">
       <header className="topbar">
-        <div className="brand-block"><div className="brand-mark"><CodeBlockMark /></div><div><p className="eyebrow">LOCALHOST / YOUR LIVING CODEBASE</p><h1>Patchwork Valley</h1></div></div>
+        <div className="brand-block"><div className="brand-mark"><CodeBlockMark /></div><div><p className="eyebrow">LOCALHOST / HUMAN IN CONTROL</p><h1>Vibe Control District</h1></div></div>
         <div className="header-metrics">
           <div className="metric coins"><Coins size={17} /><strong>{game.coins}</strong><span>coins</span></div>
           <div className="metric"><Zap size={17} /><strong>{game.xp}</strong><span>XP</span></div>
@@ -521,7 +521,7 @@ export default function Home() {
               <div className="river"><i /><i /><i /></div>
               <div className="road road-one" /><div className="road road-two" /><div className="road road-three" />
               <div className="field-large"><i /><i /><i /><i /><i /><i /></div>
-              <div className="map-sign"><strong>PATCHWORK VALLEY</strong><span>knowledge makes the village grow</span></div>
+              <div className="map-sign"><strong>VIBE CONTROL DISTRICT</strong><span>build fast · understand everything</span></div>
               {game.objects.map((object) => {
                 const order = game.orders.find((item) => item.targetId === object.id && item.status !== "complete");
                 const assignable = assigningOrderId && !busyTargetIds.has(object.id);

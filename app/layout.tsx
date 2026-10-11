@@ -7,18 +7,18 @@ const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"]
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.SITE_URL ?? "http://localhost:3000"),
-  title: "Patchwork Valley — Understand every change",
-  description: "A playful code-comprehension village for developers working with AI agents.",
+  title: "Vibe Control District — Understand every change",
+  description: "A playful code-comprehension district for developers working with AI agents.",
   icons: { icon: "/favicon.svg", shortcut: "/favicon.svg" },
   openGraph: {
-    title: "Patchwork Valley",
-    description: "Understand every change. Grow your codebase.",
-    images: [{ url: "/og.png", width: 1200, height: 630, alt: "Patchwork Valley code village" }],
+    title: "Vibe Control District",
+    description: "Build fast. Understand everything.",
+    images: [{ url: "/og.png", width: 1200, height: 630, alt: "Vibe Control District coding game" }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Patchwork Valley",
-    description: "Understand every change. Grow your codebase.",
+    title: "Vibe Control District",
+    description: "Build fast. Understand everything.",
     images: ["/og.png"],
   },
 };
