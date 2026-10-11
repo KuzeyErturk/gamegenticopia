@@ -195,3 +195,61 @@ body{background-color:#111713;background-image:linear-gradient(rgba(180,199,160,
   box-shadow:none!important;
 }
 .mini-worker .pixel-avatar{color:var(--agent);transform:scale(.9)}
+
+/* AGENT ROSTER + ROAD TRAVEL -------------------------------------------- */
+.pixel-avatar.avatar-james{--skin:#c98d60;--hair:#4b342a;--pants:#314b58}
+.pixel-avatar.avatar-ben{--skin:#e0ae7c;--hair:#2f2926;--pants:#4a536c}
+.pixel-avatar.avatar-ben::before{box-shadow:0 -4px 0 var(--hair),-3px -2px 0 var(--hair),3px -2px 0 var(--hair),3px 2px 0 var(--hair)}
+.pixel-avatar.avatar-ollie{--skin:#b97851;--hair:#c8933f;--pants:#294c49}
+.pixel-avatar.avatar-ollie::before{box-shadow:0 -4px 0 var(--hair),-3px -4px 0 var(--hair),3px -4px 0 var(--hair)}
+.pixel-avatar.avatar-luc{--skin:#d69c6c;--hair:#6b3f2d;--pants:#5c4934}
+.pixel-avatar.avatar-luc::before{box-shadow:0 -4px 0 var(--hair),-3px -4px 0 var(--hair),3px -2px 0 var(--hair),-3px 2px 0 var(--hair)}
+.pixel-avatar.avatar-miguel{--skin:#a96c48;--hair:#27231f;--pants:#334d68}
+.pixel-avatar.avatar-miguel::before{box-shadow:0 -4px 0 var(--hair),-3px -4px 0 var(--hair),3px -4px 0 var(--hair),-3px 0 0 var(--hair),3px 0 0 var(--hair)}
+
+.worker{transition:left .14s linear,top .14s linear}
+.worker.idle{opacity:.88}
+.worker.walking>.pixel-avatar{animation:roadWalk .28s steps(2,end) infinite}
+@keyframes roadWalk{50%{transform:translateY(-3px)}100%{transform:translateY(0)}}
+
+.agent-picker{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:5px;margin:10px 0 15px}
+.agent-picker button{min-width:0;display:grid;justify-items:center;gap:3px;padding:7px 2px 6px;border:1px solid #46544a;background:#171d19;color:#aeb9b0;box-shadow:2px 2px 0 #0c110e}
+.agent-picker button:hover:not(:disabled),.agent-picker button.selected{border-color:var(--agent);background:color-mix(in srgb,var(--agent) 17%,#171d19);color:#f0f2eb;transform:translate(-1px,-1px)}
+.agent-picker button.selected{outline:2px solid var(--agent);outline-offset:1px}
+.agent-picker button:disabled{opacity:.38;cursor:not-allowed}
+.agent-picker .pixel-avatar{color:var(--agent);transform:scale(.72);margin:-5px 0 -3px}
+.agent-picker strong{max-width:100%;overflow:hidden;font:800 8px var(--font-geist-mono),monospace;text-overflow:ellipsis}
+.agent-picker small{font:700 6px var(--font-geist-mono),monospace;text-transform:uppercase;letter-spacing:.06em;color:#78867c}
+.primary-button:disabled{opacity:.42;cursor:not-allowed;box-shadow:none}
+
+.task-cleanup-bar{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 8px;border:1px solid #3f4c43;background:#191f1b;color:#8d9a90}
+.task-cleanup-bar>span,.task-cleanup-bar>div,.danger-button{display:flex;align-items:center}
+.task-cleanup-bar>span{gap:5px;font:750 8px var(--font-geist-mono),monospace;text-transform:uppercase;letter-spacing:.06em}
+.task-cleanup-bar>div{gap:5px}
+.task-cleanup-bar button{padding:5px 7px;border:1px solid #4b594f;background:#252d28;color:#b8c2ba;font:750 7px var(--font-geist-mono),monospace}
+.task-cleanup-bar button:hover:not(:disabled){border-color:#b26452;color:#edb3a6}
+.task-cleanup-bar button:disabled{opacity:.3;cursor:not-allowed}
+.danger-button{justify-content:center;gap:5px;width:100%;margin-top:10px;padding:8px;border:1px solid #724a42;background:#2c211e;color:#d99a8d;font:800 8px var(--font-geist-mono),monospace}
+.danger-button:hover{border-color:#c46d59;background:#38241f;color:#f0b3a6}
+
+@media(max-width:500px){.agent-picker{grid-template-columns:repeat(3,1fr)}.task-cleanup-bar{align-items:flex-start;flex-direction:column}.task-cleanup-bar>div{width:100%}.task-cleanup-bar button{flex:1}}
+
+/* LIVE WORK LIFECYCLE + IN-GAME CONFIRMATION --------------------------- */
+.order-card.returning{border-color:#66889a;background:#1d2a30}
+.status-tag.returning{background:#557b8d;color:white}
+.returning-card{display:grid;grid-template-columns:58px 1fr;gap:10px;margin-top:13px;padding:15px;border:1px solid #496270;background:#1c292e;text-align:left}
+.returning-card h4{margin:2px 0 4px;font:800 15px var(--font-geist-mono),monospace;color:#e9efec}
+.returning-card>div:nth-child(2) span{font-size:8px;line-height:1.45;color:#9caaa5}
+.returning-card .worker-clock{background:#6f91a0;color:#101918;box-shadow:4px 4px 0 #314b56}
+.work-progress.indeterminate i{animation:liveProgress 1.3s steps(7,end) infinite}
+@keyframes liveProgress{0%{transform:translateX(-110%)}100%{transform:translateX(230%)}}
+
+.confirm-scrim{position:fixed;inset:0;z-index:100;display:grid;place-items:center;padding:20px;background:rgba(8,12,10,.72);backdrop-filter:blur(3px)}
+.game-confirm{width:min(390px,100%);padding:22px;border:2px solid #536158;background:#171d19;color:#dce3db;box-shadow:9px 9px 0 #080b09}
+.confirm-icon{width:44px;height:44px;display:grid;place-items:center;margin-bottom:14px;border:1px solid #81584d;background:#34241f;color:#df917e;box-shadow:4px 4px 0 #0b0e0c}
+.game-confirm h2{margin:0 0 9px;font:800 19px var(--font-geist-mono),monospace;color:#f0f2ea}
+.game-confirm>p:not(.eyebrow){margin:0;color:#9da9a0;font-size:10px;line-height:1.55}
+.game-confirm>div:last-child{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:20px}
+.game-confirm .secondary-button,.confirm-remove{margin:0;padding:10px;border-radius:0;font:800 9px var(--font-geist-mono),monospace}
+.confirm-remove{border:1px solid #a45c4c;background:#69382f;color:#ffe1d8;box-shadow:3px 3px 0 #271613}
+.confirm-remove:hover{background:#82463a}

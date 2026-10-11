@@ -28,50 +28,40 @@ Oyuncu kod değişikliğini doğru açıklar
 
 Kod değişikliği oyunda bir **iş emrine** dönüşür. Oyuncu, bu iş emrinin köyde hangi binayı geliştireceğini seçer. AI ajanı işi yapar; oyuncunun kodu anlaması inşaatı tamamlar.
 
-## Milo, Ivy ve Pip kim?
+## James, Ben, Ollie, Luc ve Miguel kim?
 
-Milo, Ivy ve Pip oyundaki işçi karakterleridir:
+Bunlar köydeki beş seçilebilir işçidir. Codex, Claude veya terminal yalnızca iş emrinin nereden geldiğini belirtir; görevi hangi kişinin üstleneceğine oyuncu karar verir. Boşta olan herhangi bir işçi, uygun herhangi bir binaya gönderilebilir.
 
-- **Milo:** Codex kaynaklı görevi temsil eder.
-- **Ivy:** Claude kaynaklı görevi temsil eder.
-- **Pip:** Terminal kaynaklı görevi temsil eder.
+## Atanmamış iş emri ne demek?
 
-Bu karakterler şu anda gerçek Codex, Claude veya terminal oturumlarına bağlı değildir. Mevcut prototipte oyun akışını göstermek için hazırlanmış örnek ajanlardır.
-
-Gelecekte gerçek yerel bağlantı eklendiğinde her aktif Codex, Claude veya terminal görevi köye yeni bir işçi ve iş emri gönderecektir.
-
-Ajanların belirli bir binası yoktur. Her ajan, oyuncunun seçtiği uygun bir binada çalışabilir.
-
-## “Assign me” ne demek?
-
-`Assign me`, işçinin henüz bir köy projesine atanmadığı anlamına gelir.
+Atanmamış iş emri için henüz bir kişi ve köy projesi seçilmemiştir.
 
 Bir işçiyi atamak için:
 
-1. Sağ panelde işçinin iş emrine bas.
-2. **Choose village project** butonuna bas.
-3. Haritadaki uygun binalar ve inşaat alanları vurgulanır.
-4. Geliştirmek istediğin binaya veya tamamlamak istediğin blueprint’e bas.
-5. İşçi Builders’ Guild’den çıkar ve seçilen alana yürür.
-6. İşçi çalışmaya başlar.
+1. Sağ panelde iş emrine bas.
+2. James, Ben, Ollie, Luc veya Miguel arasından boşta olan birini seç.
+3. **Choose village project** butonuna bas.
+4. Haritadaki uygun binalar ve inşaat alanları vurgulanır.
+5. Geliştirmek istediğin bina veya blueprint’e bas.
+6. Seçilen işçi Builders’ Guild’den çıkar, mevcut yol ağını takip ederek alana yürür ve çalışmaya başlar.
 7. Çalışma durduğunda bir anlama sorusu açılır.
 
 Aynı anda bir binada yalnızca bir aktif işçi çalışabilir.
 
 ## Başlangıç görevleri
 
-### Milo — Password recovery
+### James — Password recovery
 
-Milo, şifre sıfırlama özelliği üzerinde çalışır. Bu görev iki aşamalıdır:
+James, başlangıçta şifre sıfırlama özelliği üzerinde çalışır. Bu görev iki aşamalıdır:
 
 1. Şifre sıfırlama isteği
 2. Reset token güvenliği
 
-Milo’nun ilk sorusu oyun başladığında hazırdır. İlk soruyu doğru cevapladığında Milo yeniden çalışır. Birkaç saniye sonra ikinci soru açılır. İkinci soru da doğru cevaplanırsa seçilen bina seviye atlar.
+James’in ilk sorusu oyun başladığında hazırdır. İlk soruyu doğru cevapladığında yeniden çalışır. Birkaç saniye sonra ikinci soru açılır. İkinci soru da doğru cevaplanırsa seçilen bina seviye atlar.
 
-### Ivy — Product search
+### Ben — Product search
 
-Ivy, on dosyalık daha büyük bir arama özelliği üzerinde çalışır. Bu nedenle görev tek sorudan oluşmaz.
+Ben, on dosyalık daha büyük bir arama özelliği üzerinde çalışır. Bu nedenle görev tek sorudan oluşmaz.
 
 Görevin dört aşaması vardır:
 
@@ -80,17 +70,15 @@ Görevin dört aşaması vardır:
 3. Eski arama sonuçlarının yeni sonuçları ezmesini engelleme
 4. Genel sürüm kontrolü
 
-Her doğru cevap bir inşaat aşamasını tamamlar. Ivy daha sonra çalışmaya devam eder ve bir sonraki aşamanın sorusu açılır.
+Her doğru cevap bir inşaat aşamasını tamamlar. Ben daha sonra çalışmaya devam eder ve bir sonraki aşamanın sorusu açılır.
 
-### Pip — Deployment history
+### Atanmamış örnek — Deployment history
 
-Pip’in görevi başlangıçta bir binaya atanmamıştır. Bu nedenle üzerinde `Assign me` yazar.
-
-Pip’i mevcut bir binaya veya Shop’tan aldığın yeni bir blueprint’e atayabilirsin.
+Bu görev başlangıçta bir kişiye veya binaya atanmamıştır. Önce beş işçiden boşta olan birini, ardından mevcut bir binayı veya Shop’tan aldığın yeni bir blueprint’i seçebilirsin.
 
 ## Sorular nasıl çalışır?
 
-Soru ekranı, cevap vermek için bakman gereken ilgili dosya parçalarını da gösterir. Eklenen satırlar `+`, silinen satırlar `−` ile işaretlenir. Böylece cevabı tahmin etmek yerine değişikliği inceleyebilirsin. Mevcut demo örnek diff’ler kullanır; yerel terminal bağlantısı tamamlandığında bu alan gerçek `git diff` verisini gösterecektir.
+Soru ekranı, cevap vermek için bakman gereken ilgili dosya parçalarını da gösterir. Eklenen satırlar `+`, silinen satırlar `−` ile işaretlenir. Böylece cevabı tahmin etmek yerine değişikliği inceleyebilirsin. Örnek görevler temsili diff’ler, yerel watcher tarafından oluşturulan görevler ise gerçek `git diff` verisini kullanır.
 
 Her soruda üç seçenek bulunur:
 
@@ -191,19 +179,19 @@ Bir ürünü satın aldığında ürün doğrudan haritaya yerleşmez. Önce **I
 
 Shop’tan satın almak binayı anında tamamlamaz. Satın alma yalnızca blueprint verir. İnşaat için bir ajan görevi gerekir.
 
-## Mevcut prototip sınırlaması
+## Örnek ve gerçek ajan görevleri
 
-Şu anda yalnızca üç örnek ajan görevi vardır: Milo, Ivy ve Pip.
+Oyun, James’e atanmış password recovery, Ben’e atanmış product search ve henüz kişisi seçilmemiş deployment history olmak üzere üç örnek görevle başlar.
 
 Üç görevi de tamamladıktan sonra yeni bir blueprint yerleştirirsen onu yapacak boş bir ajan görevi bulunmayabilir. Böyle bir durumda blueprint haritada bekler.
 
-Gerçek yerel Codex, Claude ve terminal bağlantısı eklendiğinde her yeni kod görevi köye yeni bir iş emri getirecektir. Böylece yeni blueprint’ler sonraki gerçek görevlerle tamamlanabilecektir.
+Yerel watcher çalıştırıldığında her kararlı kod değişikliği köye yeni bir iş emri getirir. Böylece yeni blueprint’ler gerçek Claude, Codex veya terminal görevleriyle tamamlanabilir.
 
 Mevcut prototipte Shop akışını denemenin en kolay yolu:
 
-1. Pip’i bir projeye atamadan önce Shop’tan bir ürün al.
+1. Atanmamış deployment history görevini başlatmadan önce Shop’tan bir ürün al.
 2. Ürünü Inventory’den haritaya yerleştir.
-3. Pip’i yeni blueprint’e ata.
+3. Boşta olan bir işçiyi seç ve görevi yeni blueprint’e ata.
 
 ## Arrange modu
 
@@ -230,6 +218,26 @@ Blueprint’in taşınabilmesi için önce bir ajan tarafından tamamlanması ge
 - `−` butonuyla uzaklaşabilirsin.
 - Grid butonuyla başlangıç görünümüne dönebilirsin.
 
+## Gerçek Claude Code projesini bağlama
+
+İlk terminalde oyunu çalıştır:
+
+```bash
+cd /Users/kuzeyerturk/Desktop/gamegenticAI
+npm run dev
+```
+
+İkinci terminalde watcher’ı başlat. Proje yolunu Claude Code ile çalıştığın Git reposunun gerçek yoluyla değiştir:
+
+```bash
+cd /Users/kuzeyerturk/Desktop/gamegenticAI
+npm run watch:agents -- --project /projenin/tam/yolu --source Claude --claude-questions
+```
+
+Claude Code ile o projede normal şekilde çalışmaya devam et. Watcher ilk Git değişikliğini gördüğü anda oyunda atanmamış bir görev açar; Claude hâlâ yazarken işçiyi ve binayı seçebilirsin. Diff birkaç saniye değişmeden kaldığında sorular üretilir. Seçilen işçi yol üzerinden Guild’e döner ve vardığında inceleme açılır.
+
+`--claude-questions` seçeneği diff’i oturum açtığın Claude Code üzerinden işleyerek daha anlamlı sorular üretir. Bu seçenek kullanılmazsa diff Mac’ten ayrılmaz ve basit sorular tamamen yerel olarak hazırlanır.
+
 ## Coin, XP, Streak ve Village Level
 
 ### Coin
@@ -250,13 +258,22 @@ XP, Village Level değerini yükseltir. Village Level yükseldikçe daha fazla S
 
 Streak, arka arkaya kaç soruyu doğru cevapladığını gösterir. Yanlış cevap verirsen sıfırlanır.
 
+## Görevleri temizleme
+
+- **Clear finished:** Tamamlanmış bütün görev kartlarını kaldırır; kazanılan XP, coin ve bina seviyeleri kalır.
+- **Clear demo:** Üç başlangıç simulator görevini kaldırır; gerçek yerel görevleri ve köy düzenini korur.
+- **Remove task:** Açık olan tamamlanmış veya henüz başlatılmamış tek bir görevi kaldırır.
+- **Reset demo:** Bütün köyü başlangıç durumuna döndürür ve örnek görevleri yeniden oluşturur.
+
+Silme onayları tarayıcı penceresinde değil, oyunun kendi kontrol panelinde görünür. Temizlenen görev kimlikleri kayıt altında tutulduğu için arka plandaki polling aynı görevi tekrar listeye eklemez.
+
 ## Launch Tower
 
 Launch Tower’ın açılması için üç temel görevin tamamlanması gerekir:
 
-- Milo’nun password recovery görevi
-- Ivy’nin product search görevi
-- Pip’in deployment history görevi
+- James’in password recovery görevi
+- Ben’in product search görevi
+- Bir işçi seçerek tamamlayacağın deployment history görevi
 
 Üçü de tamamlandığında Launch Tower açılır. Kuleye bastığında bütün sürümle ilgili genel bir soru sorulur.
 
@@ -277,15 +294,15 @@ Gelecekteki gerçek ürünün yerel çalışması ve SQLite kullanması planlanm
 
 ## Oyunu hızlıca deneme sırası
 
-1. Milo’ya bas ve hazır olan soruyu cevapla.
-2. Milo yeniden çalışırken Ivy’nin görevini aç.
+1. James’e bas ve hazır olan soruyu cevapla.
+2. James yeniden çalışırken Ben’in görevini aç.
 3. Beklemek istemiyorsan **Finish simulated agent run** butonuna bas.
-4. Ivy’nin ilk sorusunu cevapla.
+4. Ben’in ilk sorusunu cevapla.
 5. Shop’tan bir bina satın al.
 6. Inventory’den binayı haritaya yerleştir.
-7. Pip’in kartına bas.
-8. **Choose village project** seçeneğine bas.
-9. Pip’i yeni blueprint’e ata.
+7. Atanmamış deployment history kartına bas.
+8. Boş bir işçi seç ve **Choose village project** seçeneğine bas.
+9. İşçiyi yeni blueprint’e gönder.
 10. Bütün görev aşamalarını tamamla.
 11. Launch Tower’a bas ve final sorusunu cevapla.
 
@@ -317,50 +334,40 @@ Construction advances or the building levels up
 
 A code change becomes a **work order**. The player decides which village building that work should improve. The AI agent supplies the labor; the player’s understanding completes the construction.
 
-## Who are Milo, Ivy, and Pip?
+## Who are James, Ben, Ollie, Luc, and Miguel?
 
-Milo, Ivy, and Pip are worker characters:
+They are the five selectable district workers. Codex, Claude, or Terminal describes where a work order came from; the player chooses which person will carry it. Any free worker can take any suitable village project.
 
-- **Milo:** Represents a Codex task.
-- **Ivy:** Represents a Claude task.
-- **Pip:** Represents a terminal task.
+## What does an unassigned work order mean?
 
-They are not connected to real Codex, Claude, or terminal sessions yet. They are sample agents used to demonstrate the current game loop.
-
-When the local connector is implemented, each active Codex, Claude, or terminal task will create a worker and work order in the village.
-
-Agents do not own specific buildings. Any agent can work on any suitable project selected by the player.
-
-## What does “Assign me” mean?
-
-`Assign me` means the worker has not been assigned to a village project yet.
+An unassigned work order does not have a chosen person or village project yet.
 
 To assign a worker:
 
-1. Select the worker’s work order in the side panel.
-2. Press **Choose village project**.
-3. Available buildings and construction sites are highlighted.
-4. Select the building or blueprint you want to improve.
-5. The worker leaves the Builders’ Guild and walks to the selected location.
-6. The worker begins construction.
+1. Select the work order in the side panel.
+2. Choose a free person from James, Ben, Ollie, Luc, and Miguel.
+3. Press **Choose village project**.
+4. Available buildings and construction sites are highlighted.
+5. Select the building or blueprint you want to improve.
+6. The chosen worker leaves the Builders’ Guild, follows the current road network, and begins construction.
 7. An understanding question appears when the work stops.
 
 Only one active worker can occupy a building at a time.
 
 ## Starting work orders
 
-### Milo — Password recovery
+### James — Password recovery
 
-Milo is working on password recovery. This task has two stages:
+James starts on password recovery. This task has two stages:
 
 1. Reset request behavior
 2. Reset-token safety
 
-Milo’s first question is ready when the game begins. Answering it correctly sends Milo back to work. A second question appears after a short delay. Answering the second question completes the project and levels up the selected building.
+James’s first question is ready when the game begins. Answering it correctly sends him back to work. A second question appears after a short delay. Answering the second question completes the project and levels up the selected building.
 
-### Ivy — Product search
+### Ben — Product search
 
-Ivy is working on a larger ten-file search change. It is not reduced to one question.
+Ben is working on a larger ten-file search change. It is not reduced to one question.
 
 It has four stages:
 
@@ -369,17 +376,15 @@ It has four stages:
 3. Protection against stale results
 4. Release inspection
 
-Each correct answer completes one construction stage. Ivy then resumes work before the next question appears.
+Each correct answer completes one construction stage. Ben then resumes work before the next question appears.
 
-### Pip — Deployment history
+### Unassigned sample — Deployment history
 
-Pip begins without an assigned building, so the character displays `Assign me`.
-
-Pip can be assigned to an existing building or a new blueprint purchased from the Shop.
+This task starts without a person or building. Choose any free worker first, then assign the task to an existing building or a new blueprint purchased from the Shop.
 
 ## How questions work
 
-The question screen also shows the relevant file snippets needed to investigate the answer. Added lines use `+` and removed lines use `−`, so the player can inspect the change instead of guessing. The current demo uses representative diffs; the local terminal connector will replace them with real `git diff` data.
+The question screen also shows the relevant file snippets needed to investigate the answer. Added lines use `+` and removed lines use `−`, so the player can inspect the change instead of guessing. Sample tasks use representative diffs; tasks created by the local watcher use the real `git diff`.
 
 Every question has three choices:
 
@@ -480,19 +485,19 @@ For example, to construct a new library:
 
 Buying an item only provides a blueprint. An agent work order is required to complete construction.
 
-## Current prototype limitation
+## Sample and live agent tasks
 
-The prototype currently includes only three sample agent tasks: Milo, Ivy, and Pip.
+The game starts with three sample tasks: password recovery assigned to James, product search assigned to Ben, and deployment history waiting for you to choose a worker.
 
 If all three tasks are completed before a new blueprint is placed, there may be no unassigned worker available to build it. The blueprint will remain on the map and wait.
 
-The future local Codex, Claude, and terminal connector will solve this by creating a new work order whenever a real coding task begins.
+When the local watcher sees the first Git change, it immediately creates a pending work order. The player can choose a worker and building while the real coding session continues. Once the diff settles, the generated questions update that same work order.
 
 The easiest way to test the Shop today is:
 
-1. Buy an item before assigning Pip.
+1. Buy an item before starting the unassigned deployment-history task.
 2. Place it from the Inventory.
-3. Assign Pip to the new blueprint.
+3. Choose a free worker and assign the task to the new blueprint.
 
 ## Arrange mode
 
@@ -519,6 +524,26 @@ A blueprint must be completed by an agent before it can be moved.
 - Use `−` to zoom out.
 - Use the grid button to return to the starting view.
 
+## Connecting a real Claude Code project
+
+Run the game in the first terminal:
+
+```bash
+cd /Users/kuzeyerturk/Desktop/gamegenticAI
+npm run dev
+```
+
+Start the watcher in a second terminal, replacing the project path with the Git repository used by Claude Code:
+
+```bash
+cd /Users/kuzeyerturk/Desktop/gamegenticAI
+npm run watch:agents -- --project /absolute/path/to/project --source Claude --claude-questions
+```
+
+Continue working normally with Claude Code in that repository. The first Git change immediately opens an unassigned task, so you can choose the worker and building while Claude is still writing. Once the diff remains stable, the watcher generates the questions. The worker follows the roads back to the Guild and the review opens on arrival.
+
+The `--claude-questions` option processes the selected diff through your authenticated Claude Code session. Without this option, no code is sent to an AI service and simple fallback questions are generated entirely on the Mac.
+
 ## Coins, XP, streak, and Village Level
 
 ### Coins
@@ -539,13 +564,22 @@ XP increases the Village Level. Higher levels can unlock additional Shop items.
 
 The streak records consecutive correct answers. It resets after an incorrect answer.
 
+## Clearing task history
+
+- **Clear finished:** Removes every completed task card while keeping earned XP, coins, and building levels.
+- **Clear demo:** Removes the three built-in simulator tasks while keeping live local tasks and the village layout.
+- **Remove task:** Removes the currently open completed or unassigned task.
+- **Reset demo:** Restores the whole starter village and recreates the sample tasks.
+
+Removal confirmations appear inside the game rather than in a browser dialog. Dismissed task ids are persisted, so background polling cannot add the same cleared task back to the list.
+
 ## Launch Tower
 
 The three core work orders must be completed before the Launch Tower opens:
 
-- Milo’s password-recovery task
-- Ivy’s product-search task
-- Pip’s deployment-history task
+- James’s password-recovery task
+- Ben’s product-search task
+- The deployment-history task completed by the worker you choose
 
 Once all three are complete, select the Launch Tower to answer one final question about the release as a whole.
 
@@ -566,15 +600,15 @@ The finished product is planned to run locally and use SQLite. The local-first a
 
 ## Quick play sequence
 
-1. Select Milo and answer the ready question.
-2. Open Ivy’s task while Milo resumes work.
+1. Select James and answer the ready question.
+2. Open Ben’s task while James resumes work.
 3. Use **Finish simulated agent run** if you do not want to wait.
-4. Answer Ivy’s first question.
+4. Answer Ben’s first question.
 5. Purchase a building from the Shop.
 6. Place it from the Inventory.
-7. Select Pip’s work order.
-8. Press **Choose village project**.
-9. Assign Pip to the new blueprint.
+7. Select the unassigned deployment-history work order.
+8. Choose a free worker and press **Choose village project**.
+9. Send the worker to the new blueprint.
 10. Complete every work-order stage.
 11. Select the Launch Tower and answer the final release question.
 

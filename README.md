@@ -4,7 +4,7 @@
 
 Vibe Control District turns “the agent changed some files” into something you can actually explain.
 
-Each coding agent owns a small worksite in the village. When that agent changes code, its worksite produces a three-choice checkpoint. Answer correctly and the building improves. Clear every active worksite and the Launch Tower opens for one final question about the release as a whole.
+Every stable code change becomes a work order. You choose one of five district agents—James, Ben, Ollie, Luc, or Miguel—and send that person to any available village project. When the work stops, a three-choice checkpoint appears. Answer correctly and the building improves.
 
 The point is not to test syntax trivia. It is to make sure you still understand the product you are shipping while Codex, Claude, or a terminal-based agent is moving quickly.
 
@@ -16,7 +16,8 @@ The current build is a complete interactive demo of the expanded game loop:
 - a connected road grid with reserved plots for future buildings
 - movable completed buildings, decorations, and road segments
 - a shop, blueprint inventory, and placement mode
-- agent workers representing Codex, Claude Code, and terminal tasks
+- a five-person agent roster that can take work from Codex, Claude Code, or a terminal
+- workers that follow the connected road network from the Guild to the chosen project
 - work orders that can be assigned to any free building or construction site
 - Beginner, Builder, and Expert question levels
 - multi-stage checkpoints for large changes and three choices per question
@@ -25,21 +26,22 @@ The current build is a complete interactive demo of the expanded game loop:
 - building upgrades, XP, coins, and streaks
 - a final deployment checkpoint after all worksites are cleared
 - village layout, inventory, progress, and work orders saved in the hosted database
+- controls for removing one finished/unassigned task, clearing finished history, or clearing the built-in demo tasks
 - responsive layouts for desktop and mobile
 
-The **Simulate file change** button currently supplies the events. Live filesystem and agent connections are the next layer; the browser cannot watch files on your Mac by itself.
+The built-in tasks demonstrate the loop immediately. For real work, the included local watcher turns stable Git changes from another repository into new work orders on localhost.
 
 ## How to play
 
 1. Choose your coding knowledge level from the top-right menu.
-2. Open a work order to see which agent is working, the affected files, and the size of the change.
-3. Assign an unassigned agent to any free building or unfinished blueprint on the map.
-4. The agent’s character leaves the Builders’ Guild and walks to that project.
-5. When the agent stops, inspect the relevant file snippets shown with the question.
+2. Open a work order to see its source tool, affected files, and size.
+3. As soon as the watcher sees the first Git change, choose an available agent: James, Ben, Ollie, Luc, or Miguel.
+4. Choose a free building or unfinished blueprint. The selected agent leaves the Builders’ Guild and follows the roads while the real coding session continues.
+5. When the diff stops changing, the questions are generated. The worker returns to the Guild along the roads and the review opens on arrival.
 6. Use those highlighted changes to answer the three-choice understanding check.
 7. Small changes complete quickly; large changes move through several logical stages.
 8. Correct answers upgrade the target and award XP and coins. Wrong answers pause progress and provide a hint.
-9. Clear the core work orders to unlock the Launch Tower and approve the release.
+9. Use **Clear finished** to remove completed task history, **Clear demo** to remove the three simulator tasks, or **Remove task** inside a completed/unassigned task.
 
 Use the **Shop** to buy blueprints, **Inventory** to place them, and **Arrange** to move completed village items or roads. Drag a road to reposition it; double-click it to rotate it. A placed blueprint remains unfinished until an agent work order is assigned to it.
 
@@ -49,7 +51,7 @@ You can change the knowledge level at any time:
 - **Builder** asks why an implementation choice was made.
 - **Expert** asks about security, data integrity, race conditions, and trade-offs.
 
-Progress is stored in Cloudflare D1, so refreshing the page does not reset the village. The hosted private site keeps a separate village for the signed-in owner; local development uses a local D1 database. Use **Reset demo** when you want to start another run.
+Progress is stored in Cloudflare D1, so refreshing the page does not reset the village. Local development uses a local D1 database. **Reset demo** restores the full starter village; the Clear controls remove task cards without undoing earned village upgrades.
 
 ## How questions are created
 
@@ -61,9 +63,9 @@ In this first version, the sample questions are defined in [`app/game-data.ts`](
 - one unambiguous correct answer
 - an explanation of why that answer is correct
 
-The planned live question pipeline is:
+The live question pipeline is:
 
-1. A local companion process notices a saved file or completed agent action.
+1. The local watcher notices a stable Git diff.
 2. It reads the relevant `git diff`, file path, and a small amount of surrounding code.
 3. A model summarizes the user-visible effect and selects a question depth based on the player’s knowledge level and answer history.
 4. It returns structured data containing one question, three choices, one correct answer, and one explanation.
@@ -72,11 +74,11 @@ The planned live question pipeline is:
 
 A useful rule for generated questions is: ask about **behavior and consequences before implementation vocabulary**. “What changes for the user?” is usually more valuable than “Which hook appears in this file?”
 
-## Terminal integration
+## Local Claude Code and terminal integration
 
-Terminal integration is not active in the current demo. It needs a small local companion because the hosted game cannot directly read your filesystem or terminal session.
+The local companion is included. It watches a Git repository on your Mac, waits for edits to settle, collects the relevant `git diff`, generates staged questions, and sends a new work order to the game running on localhost.
 
-The intended setup looks like this:
+The active setup looks like this:
 
 ```text
 Codex / Claude / terminal command
@@ -85,32 +87,54 @@ Codex / Claude / terminal command
               ↓
 local watcher collects the git diff
               ↓
-question generator creates a checkpoint
+Claude Code (or the local fallback) creates a checkpoint
               ↓
 Vibe Control District receives the event
 ```
 
-The companion should:
+### Try it with a Claude Code project
 
-1. run on your Mac inside the repository you want to watch
-2. listen for file changes with Node’s `fs.watch` or a library such as `chokidar`
-3. ignore `.git`, `node_modules`, build output, secrets, and environment files
-4. use `git diff` to send only the relevant change instead of the entire repository
-5. identify the source as Codex, Claude, or terminal when that information is available
-6. send the generated checkpoint to the game over a local WebSocket or HTTP endpoint
-7. require explicit approval before transmitting code to any remote question-generation service
-
-Once that companion is implemented, the expected workflow will be:
+Start the game in one terminal:
 
 ```bash
-# Terminal 1: run the game
+cd /Users/kuzeyerturk/Desktop/gamegenticAI
 npm run dev
-
-# Terminal 2: run the future local watcher in the project being edited
-npm run watch:agents
 ```
 
-`watch:agents` is documented here as the target interface—it has not been added yet. Until then, use **Simulate file change** to play through the full experience.
+Open `http://localhost:3000`, then start the watcher in a second terminal. Replace the example path with the Git repository you use with Claude Code:
+
+```bash
+cd /Users/kuzeyerturk/Desktop/gamegenticAI
+npm run watch:agents -- --project /absolute/path/to/your-project --source Claude --claude-questions
+```
+
+Continue using Claude Code normally in that target project. The first detected Git change immediately creates an unassigned work order in Vibe Control District, so you can choose the worker and building while Claude is still editing. After the diff stays stable for a few seconds, the watcher generates the questions. The worker then returns to the Guild and the real highlighted diff opens for review.
+
+The companion:
+
+1. runs on your Mac and watches the repository path you provide
+2. creates a pending work order on the first detected Git change
+3. ignore `.git`, `node_modules`, build output, secrets, and environment files
+4. use `git diff` to send only the relevant change instead of the entire repository
+5. labels the source tool as Claude, Codex, or Terminal using the `--source` option; you still choose the in-game person
+6. waits until writing settles, then sends the generated checkpoint to the localhost game endpoint
+7. ignores common secret files such as `.env`, credentials, and private keys
+
+The `--claude-questions` option uses your installed and authenticated Claude Code CLI in non-interactive print mode to turn the selected diff into 1–4 knowledge stages. This sends the selected diff through your Claude Code session. Without that option, the watcher keeps the diff entirely on your Mac and uses deterministic fallback questions:
+
+```bash
+npm run watch:agents -- --project /absolute/path/to/your-project --source Claude --no-ai
+```
+
+Useful options:
+
+- `--claude-questions` explicitly enables semantic question generation through Claude Code.
+- `--once` sends one stable change and exits.
+- `--settle 8000` waits eight seconds after the last edit before creating a task.
+- `--source Codex` or `--source Terminal` changes the worker label.
+- `npm run watch:agents -- --help` prints the full command reference.
+
+The local connector rejects requests on hosted deployments; real repository events are accepted only by the localhost app.
 
 ## Run it locally
 
@@ -151,9 +175,8 @@ worker/            Cloudflare-compatible server entry
 
 The accepted architecture for the real product is documented in [`docs/LOCAL_FIRST_DIRECTION.md`](docs/LOCAL_FIRST_DIRECTION.md).
 
-- a local file watcher and terminal companion
 - real Codex and Claude session adapters
-- questions generated from actual diffs
+- richer session boundaries for separating several edits made to the same uncommitted diff
 - per-project villages and longer upgrade paths
 - a review screen showing what the player understood before deployment
 - optional team mode, where different developers clear different worksites

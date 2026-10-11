@@ -2,16 +2,16 @@
 
 Status: accepted product direction
 
-Patchwork Valley should become a local-first application. The hosted site remains useful as a visual prototype and shareable demo, but it is not the intended architecture of the finished product.
+Vibe Control District should become a local-first application. The hosted site remains useful as a visual prototype and shareable demo, but it is not the intended architecture of the finished product.
 
 ## Core decision
 
-Each user runs Patchwork Valley on their own computer. The game opens on a localhost address, watches only repositories explicitly selected by the user, and does not require ChatGPT login or cloud hosting.
+Each user runs Vibe Control District on their own computer. The game opens on a localhost address, watches only repositories explicitly selected by the user, and does not require ChatGPT login or cloud hosting.
 
 The intended launch experience is:
 
 ```bash
-patchwork-valley --repo /path/to/project
+vibe-control-district --repo /path/to/project
 ```
 
 This starts the local companion, local game server, repository watcher, and village interface together.
@@ -27,7 +27,7 @@ git diff + optional agent adapter
           ↓
 local question generator
           ↓
-Patchwork Valley on localhost
+Vibe Control District on localhost
           ↓
 local SQLite database
 ```
@@ -48,7 +48,7 @@ local SQLite database
 ## Suggested local storage
 
 ```text
-~/.patchwork-valley/patchwork.db
+~/.vibe-control-district/vcd.db
 ```
 
 The database should support multiple repositories, with one village per project by default and an option to share one village across several repositories later.
@@ -57,11 +57,16 @@ The database should support multiple repositories, with one village per project 
 
 Agent work supplies the labor. Code changes determine the construction stages. The developer’s understanding completes the build.
 
+## Current local MVP
+
+The repository now includes `npm run watch:agents`. It polls a user-selected Git repository, waits for the diff to settle, filters common secret and build paths, sends the real highlighted diff to the localhost game, and creates a new unassigned work order. Local fallback questions are the default. Semantic questions through an authenticated Claude Code installation require the explicit `--claude-questions` option.
+
+The current MVP still uses the app's existing D1-compatible village snapshot and HTTP polling. It does not yet identify exact Claude Code session boundaries or package the server and watcher into one command.
+
 ## Next implementation milestone
 
 1. Replace the Cloudflare-specific runtime with a local Node application or add a local runtime alongside it.
 2. Add SQLite storage and migrate the current village-state model.
-3. Add a repository watcher using `fs.watch` or `chokidar`.
-4. Stream work-order events to the interface over a local WebSocket.
-5. Add diff grouping and structured three-choice question generation.
-6. Package the app as a simple CLI first; consider Tauri for a desktop release after the workflow is stable.
+3. Replace polling with Claude Code hooks or a local WebSocket for exact start/stop events.
+4. Improve diff grouping when several edits are made to one uncommitted file.
+5. Package the app as a simple CLI first; consider Tauri for a desktop release after the workflow is stable.

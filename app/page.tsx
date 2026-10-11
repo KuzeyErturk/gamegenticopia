@@ -30,14 +30,17 @@ import {
   Sparkles,
   Store,
   Timer,
+  Trash2,
   Trees,
   Trophy,
+  UsersRound,
   Warehouse,
   X,
   Zap,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  agentRoster,
   createInitialGameState,
   orderTemplates,
   releaseEvidence,
@@ -54,6 +57,153 @@ import {
 
 type AnswerState = "idle" | "correct" | "wrong";
 type Point = { x: number; y: number };
+type Confirmation = { title: string; message: string; confirmLabel: string; onConfirm: () => void };
+
+const demoOrderIds = new Set(["order-reset", "order-search", "order-schema"]);
+const legacyAgentNames: Record<string, string> = { Milo: "James", Ivy: "Ben", Pip: "Ollie" };
+
+function agentClass(name: string) {
+  return name ? `avatar-${name.toLowerCase()}` : "avatar-unassigned";
+}
+
+function normalizeOrders(orders: WorkOrder[]) {
+  return orders.map((order, index) => {
+    const migratedName = legacyAgentNames[order.agentName] ?? order.agentName;
+    const knownAgent = agentRoster.find((agent) => agent.name === migratedName);
+    const fallbackAgent = agentRoster[index % agentRoster.length];
+    const agent = knownAgent ?? (order.status === "unassigned" ? null : fallbackAgent);
+    return {
+      ...order,
+      agentName: agent?.name ?? "",
+      color: agent?.color ?? order.color ?? "#849087",
+      startedAt: order.startedAt ?? null,
+      walking: order.walking ?? false,
+      travelEndsAt: order.travelEndsAt ?? null,
+      returnStartedAt: order.returnStartedAt ?? null,
+      returnEndsAt: order.returnEndsAt ?? null,
+      external: order.external ?? order.id.startsWith("live-"),
+      questionsReady: order.questionsReady ?? true,
+    };
+  });
+}
+
+function distance(a: Point, b: Point) {
+  return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
+function pointKey(point: Point) {
+  return `${Math.round(point.x * 10) / 10}:${Math.round(point.y * 10) / 10}`;
+}
+
+function roadLine(road: RoadSegment) {
+  return road.orientation === "horizontal"
+    ? { id: road.id, orientation: road.orientation, x1: road.x, y1: road.y + 26, x2: road.x + road.length, y2: road.y + 26 }
+    : { id: road.id, orientation: road.orientation, x1: road.x + 26, y1: road.y, x2: road.x + 26, y2: road.y + road.length };
+}
+
+function projectToRoad(point: Point, line: ReturnType<typeof roadLine>): Point {
+  return line.orientation === "horizontal"
+    ? { x: Math.max(line.x1, Math.min(line.x2, point.x)), y: line.y1 }
+    : { x: line.x1, y: Math.max(line.y1, Math.min(line.y2, point.y)) };
+}
+
+function roadRoute(start: Point, end: Point, roads: RoadSegment[]) {
+  if (!roads.length) return [start, end];
+  const lines = roads.map(roadLine);
+  const nearest = (point: Point) => lines.reduce((best, line) => {
+    const projected = projectToRoad(point, line);
+    const gap = distance(point, projected);
+    return gap < best.gap ? { line, projected, gap } : best;
+  }, { line: lines[0], projected: projectToRoad(point, lines[0]), gap: Number.POSITIVE_INFINITY });
+  const startRoad = nearest(start);
+  const endRoad = nearest(end);
+  const pointsByRoad = new Map(lines.map((line) => [line.id, [{ x: line.x1, y: line.y1 }, { x: line.x2, y: line.y2 }]]));
+
+  for (let firstIndex = 0; firstIndex < lines.length; firstIndex += 1) {
+    for (let secondIndex = firstIndex + 1; secondIndex < lines.length; secondIndex += 1) {
+      const first = lines[firstIndex];
+      const second = lines[secondIndex];
+      if (first.orientation === second.orientation) continue;
+      const horizontal = first.orientation === "horizontal" ? first : second;
+      const vertical = first.orientation === "vertical" ? first : second;
+      if (vertical.x1 >= horizontal.x1 && vertical.x1 <= horizontal.x2 && horizontal.y1 >= vertical.y1 && horizontal.y1 <= vertical.y2) {
+        const intersection = { x: vertical.x1, y: horizontal.y1 };
+        pointsByRoad.get(first.id)?.push(intersection);
+        pointsByRoad.get(second.id)?.push(intersection);
+      }
+    }
+  }
+  pointsByRoad.get(startRoad.line.id)?.push(startRoad.projected);
+  pointsByRoad.get(endRoad.line.id)?.push(endRoad.projected);
+
+  const graph = new Map<string, { key: string; cost: number }[]>();
+  const points = new Map<string, Point>();
+  const connect = (a: Point, b: Point) => {
+    const aKey = pointKey(a);
+    const bKey = pointKey(b);
+    points.set(aKey, a);
+    points.set(bKey, b);
+    graph.set(aKey, [...(graph.get(aKey) ?? []), { key: bKey, cost: distance(a, b) }]);
+    graph.set(bKey, [...(graph.get(bKey) ?? []), { key: aKey, cost: distance(a, b) }]);
+  };
+  for (const line of lines) {
+    const ordered = [...new Map((pointsByRoad.get(line.id) ?? []).map((point) => [pointKey(point), point])).values()]
+      .sort((a, b) => line.orientation === "horizontal" ? a.x - b.x : a.y - b.y);
+    for (let index = 1; index < ordered.length; index += 1) connect(ordered[index - 1], ordered[index]);
+  }
+
+  const source = pointKey(startRoad.projected);
+  const destination = pointKey(endRoad.projected);
+  const costs = new Map<string, number>([[source, 0]]);
+  const previous = new Map<string, string>();
+  const pending = new Set(graph.keys());
+  while (pending.size) {
+    let current = "";
+    let currentCost = Number.POSITIVE_INFINITY;
+    for (const key of pending) {
+      const cost = costs.get(key) ?? Number.POSITIVE_INFINITY;
+      if (cost < currentCost) { current = key; currentCost = cost; }
+    }
+    if (!current || current === destination) break;
+    pending.delete(current);
+    for (const edge of graph.get(current) ?? []) {
+      const nextCost = currentCost + edge.cost;
+      if (nextCost < (costs.get(edge.key) ?? Number.POSITIVE_INFINITY)) {
+        costs.set(edge.key, nextCost);
+        previous.set(edge.key, current);
+      }
+    }
+  }
+
+  if (!costs.has(destination)) return [start, startRoad.projected, endRoad.projected, end];
+  const roadPoints: Point[] = [];
+  let cursor: string | undefined = destination;
+  while (cursor) {
+    const point = points.get(cursor);
+    if (point) roadPoints.unshift(point);
+    if (cursor === source) break;
+    cursor = previous.get(cursor);
+  }
+  return [start, ...roadPoints, end].filter((point, index, route) => index === 0 || pointKey(point) !== pointKey(route[index - 1]));
+}
+
+function pointAlongRoute(route: Point[], progress: number) {
+  if (route.length < 2) return route[0] ?? { x: 0, y: 0 };
+  const lengths = route.slice(1).map((point, index) => distance(route[index], point));
+  const total = lengths.reduce((sum, length) => sum + length, 0);
+  let remaining = Math.max(0, Math.min(1, progress)) * total;
+  for (let index = 0; index < lengths.length; index += 1) {
+    if (remaining <= lengths[index]) {
+      const ratio = lengths[index] ? remaining / lengths[index] : 0;
+      return {
+        x: route[index].x + (route[index + 1].x - route[index].x) * ratio,
+        y: route[index].y + (route[index + 1].y - route[index].y) * ratio,
+      };
+    }
+    remaining -= lengths[index];
+  }
+  return route[route.length - 1];
+}
 
 const futureLots = [
   { id: "future-1", x: 110, y: 300 },
@@ -107,9 +257,10 @@ function CodeBlockMark() {
 
 function statusCopy(order: WorkOrder) {
   if (order.status === "review") return "Question ready";
-  if (order.status === "working") return "Building";
+  if (order.status === "returning") return "Returning to Guild";
+  if (order.status === "working") return order.external ? order.questionsReady ? "Questions loaded" : "Agent live" : "Building";
   if (order.status === "complete") return "Understood";
-  return "Needs a project";
+  return order.agentName ? "Needs a project" : "Needs an agent";
 }
 
 export default function Home() {
@@ -131,17 +282,27 @@ export default function Home() {
   const [draggingRoadId, setDraggingRoadId] = useState<string | null>(null);
   const [dragOffset, setDragOffset] = useState<Point>({ x: 0, y: 0 });
   const [panDrag, setPanDrag] = useState<{ start: Point; origin: Point } | null>(null);
-  const [toast, setToast] = useState("Milo finished a code stage. One question is waiting.");
+  const [toast, setToast] = useState("James finished a code stage. One question is waiting.");
   const [clock, setClock] = useState(() => Date.now());
+  const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
+  const knownOrderIdsRef = useRef<Set<string>>(new Set());
+  const readyQuestionIdsRef = useRef<Set<string>>(new Set());
+  const dismissedOrderIdsRef = useRef<Set<string>>(new Set());
+  knownOrderIdsRef.current = new Set(game.orders.map((order) => order.id));
+  readyQuestionIdsRef.current = new Set(game.orders.filter((order) => order.questionsReady).map((order) => order.id));
+  dismissedOrderIdsRef.current = new Set(game.dismissedOrderIds);
 
+  const allTemplates = useMemo(() => ({ ...orderTemplates, ...game.liveTemplates }), [game.liveTemplates]);
   const selectedOrder = game.orders.find((order) => order.id === selectedOrderId) ?? null;
-  const selectedTemplate = selectedOrder ? orderTemplates[selectedOrder.templateId] : null;
+  const selectedTemplate = selectedOrder ? allTemplates[selectedOrder.templateId] : null;
   const selectedStage = selectedOrder && selectedTemplate ? selectedTemplate.stages[selectedOrder.stageIndex] : null;
   const selectedQuestion = releaseOpen ? releaseQuestion[game.difficulty] : selectedStage?.questions[game.difficulty] ?? null;
-  const initialOrders = game.orders.filter((order) => !order.id.startsWith("construction-"));
-  const releaseReady = initialOrders.length >= 3 && initialOrders.every((order) => order.status === "complete");
-  const activeOrders = game.orders.filter((order) => order.status === "working" || order.status === "review");
+  const demoOrders = game.orders.filter((order) => demoOrderIds.has(order.id));
+  const releaseReady = demoOrders.length === demoOrderIds.size && demoOrders.every((order) => order.status === "complete");
+  const activeOrders = game.orders.filter((order) => order.status === "working" || order.status === "returning");
+  const completedOrders = game.orders.filter((order) => order.status === "complete");
+  const busyAgentNames = useMemo(() => new Set(game.orders.filter((order) => order.status === "working" || order.status === "returning").map((order) => order.agentName).filter(Boolean)), [game.orders]);
   const inventoryCount = game.inventory.reduce((total, item) => total + item.quantity, 0);
   const level = villageLevel(game.xp);
 
@@ -153,7 +314,14 @@ export default function Home() {
         if (!active) return;
         if (payload.state?.version === 2) {
           const fallback = createInitialGameState();
-          setGame({ ...fallback, ...payload.state, roads: Array.isArray(payload.state.roads) ? payload.state.roads : fallback.roads });
+          setGame({
+            ...fallback,
+            ...payload.state,
+            roads: Array.isArray(payload.state.roads) ? payload.state.roads : fallback.roads,
+            orders: Array.isArray(payload.state.orders) ? normalizeOrders(payload.state.orders as WorkOrder[]) : fallback.orders,
+            liveTemplates: payload.state.liveTemplates && typeof payload.state.liveTemplates === "object" ? payload.state.liveTemplates : {},
+            dismissedOrderIds: Array.isArray(payload.state.dismissedOrderIds) ? payload.state.dismissedOrderIds : [],
+          });
         }
         setHydrated(true);
         setSaveStatus("saved");
@@ -165,6 +333,37 @@ export default function Home() {
       });
     return () => { active = false; };
   }, []);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    let active = true;
+    const checkForLocalAgentWork = () => {
+      fetch("/api/village")
+        .then((response) => response.json())
+        .then((payload) => {
+          if (!active || payload.state?.version !== 2) return;
+          const remoteOrders = Array.isArray(payload.state.orders) ? payload.state.orders as WorkOrder[] : [];
+          const remoteTemplates = payload.state.liveTemplates && typeof payload.state.liveTemplates === "object" ? payload.state.liveTemplates : {};
+          const visibleRemoteOrders = normalizeOrders(remoteOrders.filter((order) => order.id.startsWith("live-") && !dismissedOrderIdsRef.current.has(order.id)));
+          const incoming = visibleRemoteOrders.filter((order) => !knownOrderIdsRef.current.has(order.id));
+          const readyUpdates = visibleRemoteOrders.filter((order) => order.questionsReady && !readyQuestionIdsRef.current.has(order.id));
+          if (!incoming.length && !readyUpdates.length) return;
+          incoming.forEach((order) => knownOrderIdsRef.current.add(order.id));
+          readyUpdates.forEach((order) => readyQuestionIdsRef.current.add(order.id));
+          const readyIds = new Set(readyUpdates.map((order) => order.id));
+          setGame((current) => ({
+            ...current,
+            orders: [...current.orders.map((order) => readyIds.has(order.id) ? { ...order, questionsReady: true } : order), ...incoming],
+            liveTemplates: { ...current.liveTemplates, ...remoteTemplates },
+          }));
+          if (incoming.length) setToast(`${incoming.length} coding session ${incoming.length === 1 ? "has" : "have"} started. Choose an agent and worksite.`);
+          else if (readyUpdates.length) setToast("File writing stopped. Questions are ready; an assigned worker will return to the Guild.");
+        })
+        .catch(() => undefined);
+    };
+    const timer = window.setInterval(checkForLocalAgentWork, 2200);
+    return () => { active = false; window.clearInterval(timer); };
+  }, [hydrated]);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -191,15 +390,31 @@ export default function Home() {
       setGame((current) => {
         let changed = false;
         const orders = current.orders.map((order) => {
+          if (order.status === "working" && order.external) {
+            if (order.walking && order.travelEndsAt && order.travelEndsAt <= now) {
+              changed = true;
+              return order.questionsReady
+                ? { ...order, status: "returning" as const, walking: false, startedAt: null, travelEndsAt: null, returnStartedAt: now, returnEndsAt: now + 6000 }
+                : { ...order, walking: false, startedAt: null, travelEndsAt: null };
+            }
+            if (!order.walking && order.questionsReady) {
+              changed = true;
+              return { ...order, status: "returning" as const, returnStartedAt: now, returnEndsAt: now + 6000 };
+            }
+          }
+          if (order.status === "returning" && order.returnEndsAt && order.returnEndsAt <= now) {
+            changed = true;
+            return { ...order, status: "review" as const, returnStartedAt: null, returnEndsAt: null };
+          }
           if (order.status === "working" && order.readyAt && order.readyAt <= now) {
             changed = true;
-            return { ...order, status: "review" as const, readyAt: null };
+            return { ...order, status: "review" as const, readyAt: null, startedAt: null, walking: false, travelEndsAt: null };
           }
           return order;
         });
         return changed ? { ...current, orders } : current;
       });
-    }, 1000);
+    }, 120);
     return () => window.clearInterval(timer);
   }, []);
 
@@ -249,6 +464,15 @@ export default function Home() {
   }
 
   function beginAssignment(orderId: string) {
+    const order = game.orders.find((item) => item.id === orderId);
+    if (!order?.agentName) {
+      setToast("Choose a free agent before selecting a village project.");
+      return;
+    }
+    if (busyAgentNames.has(order.agentName)) {
+      setToast(`${order.agentName} is already working. Choose another agent.`);
+      return;
+    }
     setAssigningOrderId(orderId);
     setPlacementItemId(null);
     setArrangeMode(false);
@@ -260,9 +484,18 @@ export default function Home() {
       setToast("That place already has a worker. Choose another project.");
       return;
     }
+    const startedAt = Date.now();
     setGame((current) => ({
       ...current,
-      orders: current.orders.map((order) => order.id === orderId ? { ...order, targetId: objectId, status: "working", readyAt: Date.now() + 9000 } : order),
+      orders: current.orders.map((order) => order.id === orderId ? {
+        ...order,
+        targetId: objectId,
+        status: "working",
+        startedAt,
+        travelEndsAt: startedAt + 7000,
+        readyAt: order.external ? null : startedAt + 11000,
+        walking: true,
+      } : order),
     }));
     const order = game.orders.find((item) => item.id === orderId);
     const object = game.objects.find((item) => item.id === objectId);
@@ -272,7 +505,7 @@ export default function Home() {
   }
 
   function finishSimulatedWork(orderId: string) {
-    setGame((current) => ({ ...current, orders: current.orders.map((order) => order.id === orderId ? { ...order, status: "review", readyAt: null } : order) }));
+    setGame((current) => ({ ...current, orders: current.orders.map((order) => order.id === orderId ? { ...order, status: "review", readyAt: null, startedAt: null, walking: false } : order) }));
     setAnswerState("idle");
     setChosen(null);
     setToast("The agent stopped. Explain the change to continue construction.");
@@ -294,6 +527,7 @@ export default function Home() {
     }
     if (!selectedOrder || !selectedTemplate) return;
     const finalStage = selectedOrder.stageIndex >= selectedTemplate.stages.length - 1;
+    const resumedAt = Date.now();
     setGame((current) => ({
       ...current,
       coins: current.coins + (finalStage ? 30 : 12),
@@ -302,13 +536,80 @@ export default function Home() {
       orders: current.orders.map((order) => order.id === selectedOrder.id ? {
         ...order,
         stageIndex: finalStage ? order.stageIndex : order.stageIndex + 1,
-        status: finalStage ? "complete" : "working",
-        readyAt: finalStage ? null : Date.now() + 7000,
+        status: finalStage ? "complete" : order.external ? "review" : "working",
+        readyAt: finalStage || order.external ? null : resumedAt + 7000,
+        startedAt: finalStage || order.external ? null : resumedAt,
+        walking: false,
       } : order),
       objects: finalStage ? current.objects.map((object) => object.id === selectedOrder.targetId ? { ...object, built: true, level: Math.max(1, object.level + 1) } : object) : current.objects,
     }));
     window.setTimeout(() => { setAnswerState("idle"); setChosen(null); }, 900);
-    setToast(finalStage ? "Upgrade complete. Your worker is returning to the Guild." : "Stage cleared. The worker has resumed construction.");
+    setToast(finalStage ? "Upgrade complete. Your worker is back at the Guild." : selectedOrder.external ? "Stage cleared. The next question is ready." : "Stage cleared. The worker has resumed construction.");
+  }
+
+  function chooseAgent(orderId: string, agentName: string) {
+    const agent = agentRoster.find((entry) => entry.name === agentName);
+    if (!agent || busyAgentNames.has(agent.name)) return;
+    setGame((current) => ({
+      ...current,
+      orders: current.orders.map((order) => order.id === orderId ? { ...order, agentName: agent.name, color: agent.color } : order),
+    }));
+    setToast(`${agent.name} is ready. Now choose what to build or upgrade.`);
+  }
+
+  function removeOrders(orderIds: string[], message: string) {
+    const ids = new Set(orderIds);
+    if (!ids.size) return;
+    setGame((current) => {
+      const removedTemplateIds = new Set(current.orders.filter((order) => ids.has(order.id)).map((order) => order.templateId));
+      const liveTemplates = { ...current.liveTemplates };
+      removedTemplateIds.forEach((templateId) => { delete liveTemplates[templateId]; });
+      return {
+        ...current,
+        orders: current.orders.filter((order) => !ids.has(order.id)),
+        liveTemplates,
+        dismissedOrderIds: [...new Set([...current.dismissedOrderIds, ...orderIds])],
+      };
+    });
+    if (ids.has(selectedOrderId)) {
+      setSelectedOrderId("");
+      setPanelMode("orders");
+      setReleaseOpen(false);
+    }
+    setAssigningOrderId(null);
+    setToast(message);
+  }
+
+  function clearCompletedOrders() {
+    if (!completedOrders.length) return;
+    setConfirmation({
+      title: "Clear finished tasks?",
+      message: `${completedOrders.length} completed ${completedOrders.length === 1 ? "task" : "tasks"} will leave the list. Village upgrades, XP, and coins will stay.`,
+      confirmLabel: "Clear finished",
+      onConfirm: () => removeOrders(completedOrders.map((order) => order.id), "Completed task history cleared. Village progress was kept."),
+    });
+  }
+
+  function clearDemoTasks() {
+    const ids = game.orders.filter((order) => demoOrderIds.has(order.id)).map((order) => order.id);
+    if (!ids.length) return;
+    setConfirmation({
+      title: "Clear simulator tasks?",
+      message: "The three built-in tasks will be removed. Your village layout and live local tasks will stay.",
+      confirmLabel: "Clear demo",
+      onConfirm: () => removeOrders(ids, "Simulator tasks cleared. The district is ready for your real project."),
+    });
+  }
+
+  function removeOrder(orderId: string) {
+    const order = game.orders.find((item) => item.id === orderId);
+    if (!order || (order.status !== "unassigned" && order.status !== "complete")) return;
+    setConfirmation({
+      title: "Remove this task?",
+      message: order.status === "complete" ? "The task card will be removed, but its village upgrade and rewards will stay." : "This unassigned task and its generated questions will be removed.",
+      confirmLabel: "Remove task",
+      onConfirm: () => removeOrders([orderId], "Task removed from the district."),
+    });
   }
 
   function buyItem(itemId: string) {
@@ -408,7 +709,7 @@ export default function Home() {
 
   function openLaunchTower() {
     if (!releaseReady) {
-      setToast(`${initialOrders.filter((order) => order.status !== "complete").length} agent projects still need understanding checks.`);
+      setToast(`${demoOrders.filter((order) => order.status !== "complete").length} demo projects still need understanding checks.`);
       return;
     }
     setReleaseOpen(true);
@@ -443,13 +744,14 @@ export default function Home() {
     if (!selectedOrder || !selectedTemplate) return null;
     const target = game.objects.find((object) => object.id === selectedOrder.targetId);
     const seconds = selectedOrder.readyAt ? Math.max(0, Math.ceil((selectedOrder.readyAt - clock) / 1000)) : 0;
+    const returnSeconds = selectedOrder.returnEndsAt ? Math.max(0, Math.ceil((selectedOrder.returnEndsAt - clock) / 1000)) : 0;
     const progress = selectedOrder.status === "complete" ? 100 : Math.round((selectedOrder.stageIndex / selectedTemplate.stages.length) * 100);
     return (
       <div className="panel-scroll">
         <button className="back-button" onClick={() => { setPanelMode("orders"); setAssigningOrderId(null); }}><ArrowLeft size={15} /> All work orders</button>
         <div className="agent-hero" style={{ "--agent": selectedOrder.color } as React.CSSProperties}>
-          <div className="portrait"><span className={`pixel-avatar avatar-${selectedOrder.agentName.toLowerCase()}`}><i /><i /><i /></span></div>
-          <div><span>{selectedOrder.source} worker</span><strong>{selectedOrder.agentName}</strong></div>
+          <div className="portrait">{selectedOrder.agentName ? <span className={`pixel-avatar ${agentClass(selectedOrder.agentName)}`}><i /><i /><i /></span> : <UsersRound size={25} />}</div>
+          <div><span>{selectedOrder.source} task</span><strong>{selectedOrder.agentName || "Choose an agent"}</strong></div>
           <b className={`status-tag ${selectedOrder.status}`}>{statusCopy(selectedOrder)}</b>
         </div>
         <div className="order-title-row">
@@ -463,23 +765,36 @@ export default function Home() {
         </div>
         {selectedOrder.status === "unassigned" && (
           <div className="order-action-card">
-            <Construction size={28} />
-            <h4>Choose what this work improves</h4>
-            <p>Assign {selectedOrder.agentName} to any free building or unfinished blueprint. The code task will become its upgrade.</p>
-            <button className={`primary-button ${assigningOrderId ? "active" : ""}`} onClick={() => beginAssignment(selectedOrder.id)}><LocateFixed size={17} /> {assigningOrderId ? "Choose on the map…" : "Choose village project"}</button>
+            <UsersRound size={28} />
+            <h4>Choose your builder</h4>
+            <p>The coding tool created the task. You decide which district agent carries it to the worksite.</p>
+            <div className="agent-picker" aria-label="Choose an available agent">
+              {agentRoster.map((agent) => {
+                const busy = busyAgentNames.has(agent.name);
+                const selected = selectedOrder.agentName === agent.name;
+                return <button key={agent.name} className={selected ? "selected" : ""} disabled={busy} onClick={() => chooseAgent(selectedOrder.id, agent.name)} style={{ "--agent": agent.color } as React.CSSProperties}><span className={`pixel-avatar ${agentClass(agent.name)}`}><i /><i /><i /></span><strong>{agent.name}</strong><small>{busy ? "busy" : selected ? "selected" : "free"}</small></button>;
+              })}
+            </div>
+            <h4>Choose what to improve</h4>
+            <p>{selectedOrder.agentName ? `${selectedOrder.agentName} will walk from the Guild to any free building or unfinished blueprint.` : "Select a free agent first, then choose a village project."}</p>
+            <button className={`primary-button ${assigningOrderId ? "active" : ""}`} disabled={!selectedOrder.agentName} onClick={() => beginAssignment(selectedOrder.id)}><LocateFixed size={17} /> {assigningOrderId ? "Choose on the map…" : "Choose village project"}</button>
+            <button className="danger-button" onClick={() => removeOrder(selectedOrder.id)}><Trash2 size={14} /> Remove task</button>
           </div>
         )}
         {selectedOrder.status === "working" && (
           <div className="working-card">
-            <div className="worker-clock"><Timer size={24} /><strong>{seconds}s</strong></div>
-            <div><p className="eyebrow">AGENT IS WORKING</p><h4>{selectedStage?.name}</h4><span>{selectedOrder.agentName} is building at {target?.name ?? "the worksite"}. The next question appears when the agent stops.</span></div>
-            <div className="work-progress"><i style={{ width: `${Math.max(8, 100 - seconds * 10)}%` }} /></div>
-            <button className="secondary-button" onClick={() => finishSimulatedWork(selectedOrder.id)}>Finish simulated agent run</button>
+            <div className="worker-clock">{selectedOrder.external ? <Activity size={24} /> : <Timer size={24} />}<strong>{selectedOrder.external ? selectedOrder.walking ? "GO" : "LIVE" : `${seconds}s`}</strong></div>
+            <div><p className="eyebrow">{selectedOrder.walking ? "WALKING TO WORKSITE" : "AGENT IS WRITING"}</p><h4>{selectedOrder.questionsReady ? "Questions generated" : selectedStage?.name}</h4><span>{selectedOrder.walking ? `${selectedOrder.agentName} is following the roads to ${target?.name ?? "the worksite"}.` : selectedOrder.external ? "The game is waiting for the real Git diff to stop changing. There is no fake countdown." : `${selectedOrder.agentName} is building at ${target?.name ?? "the worksite"}. The next question appears when the agent stops.`}</span></div>
+            <div className={`work-progress ${selectedOrder.external && !selectedOrder.questionsReady ? "indeterminate" : ""}`}><i style={{ width: selectedOrder.external ? "48%" : `${Math.max(8, 100 - seconds * 10)}%` }} /></div>
+            {!selectedOrder.external && <button className="secondary-button" onClick={() => finishSimulatedWork(selectedOrder.id)}>Finish simulated agent run</button>}
           </div>
         )}
-        {selectedOrder.status === "review" && selectedQuestion && renderQuiz(selectedQuestion, `Stage ${selectedOrder.stageIndex + 1} of ${selectedTemplate.stages.length} · ${selectedStage?.name}`)}
+        {selectedOrder.status === "returning" && (
+          <div className="returning-card"><div className="worker-clock"><ArrowLeft size={24} /><strong>{returnSeconds}s</strong></div><div><p className="eyebrow">QUESTIONS READY</p><h4>Returning to the Guild</h4><span>The file changes stopped and the review was generated. {selectedOrder.agentName} is walking back along the roads; the question opens on arrival.</span></div></div>
+        )}
+        {selectedOrder.status === "review" && selectedOrder.questionsReady && selectedQuestion && renderQuiz(selectedQuestion, `Stage ${selectedOrder.stageIndex + 1} of ${selectedTemplate.stages.length} · ${selectedStage?.name}`)}
         {selectedOrder.status === "complete" && (
-          <div className="complete-card"><span><Check size={26} /></span><p className="eyebrow">PROJECT COMPLETE</p><h3>{target?.name} reached level {target?.level}</h3><p>{selectedOrder.agentName} has returned to the Builders’ Guild. This change is understood and ready for the release.</p></div>
+          <div className="complete-card"><span><Check size={26} /></span><p className="eyebrow">PROJECT COMPLETE</p><h3>{target?.name} reached level {target?.level}</h3><p>{selectedOrder.agentName} has returned to the Builders’ Guild. This change is understood and ready for the release.</p><button className="danger-button" onClick={() => removeOrder(selectedOrder.id)}><Trash2 size={14} /> Clear this task</button></div>
         )}
       </div>
     );
@@ -603,16 +918,33 @@ export default function Home() {
                   </button>
                 );
               })}
-              {game.orders.map((order, index) => {
+              {agentRoster.map((agent, index) => {
                 const guild = game.objects.find((object) => object.id === "guild")!;
-                const target = game.objects.find((object) => object.id === order.targetId);
-                const atSite = order.status === "working" || order.status === "review";
-                const left = atSite && target ? target.x + 80 : guild.x + 30 + index * 30;
-                const top = atSite && target ? target.y + 72 : guild.y + 112;
+                const agentOrders = game.orders.filter((item) => item.agentName === agent.name && item.status !== "complete");
+                const order = agentOrders.find((item) => item.status === "working" || item.status === "returning" || item.status === "unassigned") ?? agentOrders[0];
+                const target = order ? game.objects.find((object) => object.id === order.targetId) : null;
+                const idlePoint = { x: guild.x + 24 + index * 30, y: guild.y + 119 };
+                const targetPoint = target ? { x: target.x + 74, y: target.y + 82 } : idlePoint;
+                const guildExit = { x: guild.x + 88, y: guild.y + 119 };
+                let position = target && order && (order.status === "working" || (order.status === "review" && !order.external)) ? targetPoint : idlePoint;
+                let isTraveling = false;
+                if (target && order?.status === "working" && order.walking && order.startedAt && order.travelEndsAt) {
+                  const elapsed = Math.max(0, clock - order.startedAt);
+                  const duration = Math.max(1, order.travelEndsAt - order.startedAt);
+                  const walkingProgress = Math.min(1, elapsed / duration);
+                  isTraveling = walkingProgress < 1;
+                  position = pointAlongRoute(roadRoute(guildExit, targetPoint, game.roads), walkingProgress);
+                } else if (target && order?.status === "returning" && order.returnStartedAt && order.returnEndsAt) {
+                  const elapsed = Math.max(0, clock - order.returnStartedAt);
+                  const duration = Math.max(1, order.returnEndsAt - order.returnStartedAt);
+                  const returningProgress = Math.min(1, elapsed / duration);
+                  isTraveling = returningProgress < 1;
+                  position = pointAlongRoute(roadRoute(targetPoint, guildExit, game.roads), returningProgress);
+                }
                 return (
-                  <button key={order.id} className={`worker ${order.status}`} style={{ left, top, "--agent": order.color } as React.CSSProperties} onClick={(event) => { event.stopPropagation(); openOrder(order.id); }} aria-label={`${order.agentName}, ${statusCopy(order)}`}>
-                    <span className={`pixel-avatar avatar-${order.agentName.toLowerCase()}`}><i /><i /><i /></span>
-                    {(order.status === "review" || order.status === "unassigned") && <em>{order.status === "review" ? "Question!" : "Assign me"}</em>}
+                  <button key={agent.name} className={`worker ${order?.status ?? "idle"} ${isTraveling ? "walking" : ""}`} style={{ left: position.x, top: position.y, "--agent": agent.color } as React.CSSProperties} onClick={(event) => { event.stopPropagation(); order ? openOrder(order.id) : setToast(`${agent.name} is free and waiting at the Guild.`); }} aria-label={`${agent.name}, ${order ? statusCopy(order) : "available"}`}>
+                    <span className={`pixel-avatar ${agentClass(agent.name)}`}><i /><i /><i /></span>
+                    {order && (order.status === "review" || order.status === "unassigned") && <em>{order.status === "review" ? "Question!" : "Ready"}</em>}
                   </button>
                 );
               })}
@@ -626,23 +958,25 @@ export default function Home() {
             {(assigningOrderId || placementItemId || arrangeMode) && <div className="mode-banner">{assigningOrderId ? "Choose a highlighted village project" : placementItemId ? "Place this blueprint on open land" : "Drag buildings or roads · double-click a road to rotate"}<button onClick={() => { setAssigningOrderId(null); setPlacementItemId(null); setArrangeMode(false); }}><X size={14} /> Done</button></div>}
           </div>
 
-          <div className="activity-strip"><div className="activity-icon"><Activity size={18} /></div><div><span>VILLAGE ACTIVITY</span><strong>{toast || "Agents turn code into progress. Your understanding finishes the work."}</strong></div><div className="agent-dots">{game.orders.slice(0, 4).map((order) => <button key={order.id} style={{ "--agent": order.color } as React.CSSProperties} onClick={() => openOrder(order.id)}><CircleUserRound size={15} />{order.agentName}</button>)}</div></div>
+          <div className="activity-strip"><div className="activity-icon"><Activity size={18} /></div><div><span>VILLAGE ACTIVITY</span><strong>{toast || "Agents turn code into progress. Your understanding finishes the work."}</strong></div><div className="agent-dots">{agentRoster.map((agent) => { const orders = game.orders.filter((item) => item.agentName === agent.name && item.status !== "complete"); const order = orders.find((item) => item.status === "working" || item.status === "returning" || item.status === "unassigned") ?? orders[0]; return <button key={agent.name} style={{ "--agent": agent.color } as React.CSSProperties} onClick={() => order ? openOrder(order.id) : setToast(`${agent.name} is available for a new task.`)}><CircleUserRound size={15} />{agent.name}</button>; })}</div></div>
         </section>
 
         <aside className="side-panel">
           <div className="panel-heading"><div><p className="eyebrow">{panelMode === "shop" ? "VILLAGE MARKET" : panelMode === "inventory" ? "YOUR BLUEPRINTS" : panelMode === "order" ? releaseOpen ? "LAUNCH TOWER" : "AGENT PROJECT" : "ACTIVE DEVELOPMENT"}</p><h2>{panelMode === "shop" ? "Build something lovely" : panelMode === "inventory" ? "Ready to place" : panelMode === "order" ? releaseOpen ? "Release inspection" : "Worksite details" : "Work orders"}</h2></div><span className="panel-count">{panelMode === "shop" ? `${shopItems.length} items` : panelMode === "inventory" ? `${inventoryCount} owned` : `${game.orders.length} tasks`}</span></div>
 
-          {showGuide && <div className="guide-card"><ShieldCheck size={22} /><p><strong>How the new loop works</strong><br />An agent takes a code task to any district project. When the agent stops, a question unlocks the next construction stage. Use Arrange to drag buildings and roads; double-click a road to rotate it.</p><button onClick={() => setShowGuide(false)}><X size={15} /></button></div>}
+          {showGuide && <div className="guide-card"><ShieldCheck size={22} /><p><strong>How the live loop works</strong><br />The first Git change opens a task so you can choose a worker and project. When writing stops, questions load and the worker follows the roads back to the Guild. Use Arrange to drag buildings and roads.</p><button onClick={() => setShowGuide(false)}><X size={15} /></button></div>}
 
           {panelMode === "orders" && (
             <div className="panel-scroll order-list">
-              <div className="release-progress"><div><span>Release 0.5</span><strong>{initialOrders.filter((order) => order.status === "complete").length} / {initialOrders.length} core projects</strong></div><i><b style={{ width: `${initialOrders.length ? initialOrders.filter((order) => order.status === "complete").length / initialOrders.length * 100 : 0}%` }} /></i><button onClick={openLaunchTower} disabled={!releaseReady && !game.releaseApproved}>{game.releaseApproved ? "Released" : releaseReady ? "Inspect release" : "Tower locked"}{game.releaseApproved ? <Check size={15} /> : <LockKeyhole size={15} />}</button></div>
+              {demoOrders.length > 0 && <div className="release-progress"><div><span>Demo release</span><strong>{demoOrders.filter((order) => order.status === "complete").length} / {demoOrderIds.size} projects</strong></div><i><b style={{ width: `${demoOrders.filter((order) => order.status === "complete").length / demoOrderIds.size * 100}%` }} /></i><button onClick={openLaunchTower} disabled={!releaseReady && !game.releaseApproved}>{game.releaseApproved ? "Released" : releaseReady ? "Inspect release" : "Tower locked"}{game.releaseApproved ? <Check size={15} /> : <LockKeyhole size={15} />}</button></div>}
+              <div className="task-cleanup-bar"><span><Trash2 size={13} /> Task history</span><div><button onClick={clearCompletedOrders} disabled={!completedOrders.length}>Clear finished</button><button onClick={clearDemoTasks} disabled={!demoOrders.length}>Clear demo</button></div></div>
               {game.orders.map((order) => {
-                const template = orderTemplates[order.templateId];
+                const template = allTemplates[order.templateId];
+                if (!template) return null;
                 const target = game.objects.find((object) => object.id === order.targetId);
-                return <button key={order.id} className={`order-card ${order.status}`} onClick={() => openOrder(order.id)} style={{ "--agent": order.color } as React.CSSProperties}><span className="mini-worker"><span className={`pixel-avatar avatar-${order.agentName.toLowerCase()}`}><i /><i /><i /></span></span><div><p>{order.agentName} · {order.source}</p><strong>{template.title}</strong><small>{target ? `${target.name} · ` : ""}{statusCopy(order)}</small></div><span className="file-count">{template.fileCount}<small>files</small></span></button>;
+                return <button key={order.id} className={`order-card ${order.status}`} onClick={() => openOrder(order.id)} style={{ "--agent": order.color } as React.CSSProperties}><span className="mini-worker">{order.agentName ? <span className={`pixel-avatar ${agentClass(order.agentName)}`}><i /><i /><i /></span> : <UsersRound size={20} />}</span><div><p>{order.agentName || "Choose agent"} · {order.source}</p><strong>{template.title}</strong><small>{target ? `${target.name} · ` : ""}{statusCopy(order)}</small></div><span className="file-count">{template.fileCount}<small>files</small></span></button>;
               })}
-              <button className="incoming-card" onClick={() => setToast("The live terminal connector is the next integration. This demo already supports the work orders it will create.")}><Plus size={18} /><span><strong>Incoming agent slot</strong><small>Ready for the future local connector</small></span></button>
+              <button className="incoming-card" onClick={() => setToast("Local connector ready. Run npm run watch:agents with the Git project you want to follow.")}><Plus size={18} /><span><strong>Local agent connector</strong><small>Watching localhost for real Git changes</small></span></button>
             </div>
           )}
 
@@ -664,6 +998,17 @@ export default function Home() {
           <div className="panel-footer"><span><Hammer size={14} /> Database-backed village</span><button onClick={resetVillage}>Reset demo</button></div>
         </aside>
       </section>
+      {confirmation && (
+        <div className="confirm-scrim" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setConfirmation(null); }}>
+          <section className="game-confirm" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-message">
+            <div className="confirm-icon"><Trash2 size={22} /></div>
+            <p className="eyebrow">DISTRICT CONTROL</p>
+            <h2 id="confirm-title">{confirmation.title}</h2>
+            <p id="confirm-message">{confirmation.message}</p>
+            <div><button className="secondary-button" onClick={() => setConfirmation(null)}>Cancel</button><button className="confirm-remove" onClick={() => { const action = confirmation.onConfirm; setConfirmation(null); action(); }}>{confirmation.confirmLabel}</button></div>
+          </section>
+        </div>
+      )}
     </main>
   );
 }

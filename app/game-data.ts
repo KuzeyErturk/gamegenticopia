@@ -1,5 +1,5 @@
 export type Difficulty = "Beginner" | "Builder" | "Expert";
-export type OrderStatus = "unassigned" | "working" | "review" | "complete";
+export type OrderStatus = "unassigned" | "working" | "returning" | "review" | "complete";
 export type PanelMode = "orders" | "shop" | "inventory" | "order";
 
 export type Question = {
@@ -47,7 +47,28 @@ export type WorkOrder = {
   targetId: string | null;
   stageIndex: number;
   readyAt: number | null;
+  startedAt?: number | null;
+  walking?: boolean;
+  travelEndsAt?: number | null;
+  returnStartedAt?: number | null;
+  returnEndsAt?: number | null;
+  external?: boolean;
+  questionsReady?: boolean;
 };
+
+export type AgentProfile = {
+  name: "James" | "Ben" | "Ollie" | "Luc" | "Miguel";
+  color: string;
+  role: string;
+};
+
+export const agentRoster: AgentProfile[] = [
+  { name: "James", color: "#df6c4f", role: "Product builder" },
+  { name: "Ben", color: "#7f72b7", role: "Interface builder" },
+  { name: "Ollie", color: "#2f8e7f", role: "Systems builder" },
+  { name: "Luc", color: "#d29a3d", role: "Quality builder" },
+  { name: "Miguel", color: "#4e78ad", role: "Release builder" },
+];
 
 export type VillageObject = {
   id: string;
@@ -84,6 +105,8 @@ export type GameState = {
   roads: RoadSegment[];
   inventory: InventoryEntry[];
   orders: WorkOrder[];
+  liveTemplates: Record<string, OrderTemplate>;
+  dismissedOrderIds: string[];
 };
 
 export type ShopItem = {
@@ -363,10 +386,12 @@ export function createInitialGameState(): GameState {
       { id: "road-future-east", x: 800, y: 345, length: 600, orientation: "horizontal", kind: "lane" },
     ],
     inventory: [],
+    liveTemplates: {},
+    dismissedOrderIds: [],
     orders: [
-      { id: "order-reset", templateId: "passwordReset", agentName: "Milo", source: "Codex", color: "#ef6c4d", status: "review", targetId: "cottage-a", stageIndex: 0, readyAt: null },
-      { id: "order-search", templateId: "searchFilters", agentName: "Ivy", source: "Claude", color: "#7f72b7", status: "working", targetId: "library-a", stageIndex: 0, readyAt: now + 12000 },
-      { id: "order-schema", templateId: "deploymentHistory", agentName: "Pip", source: "Terminal", color: "#2f8e7f", status: "unassigned", targetId: null, stageIndex: 0, readyAt: null },
+      { id: "order-reset", templateId: "passwordReset", agentName: "James", source: "Codex", color: "#df6c4f", status: "review", targetId: "cottage-a", stageIndex: 0, readyAt: null, startedAt: null, walking: false, external: false, questionsReady: true },
+      { id: "order-search", templateId: "searchFilters", agentName: "Ben", source: "Claude", color: "#7f72b7", status: "working", targetId: "library-a", stageIndex: 0, readyAt: now + 12000, startedAt: now, walking: true, travelEndsAt: now + 7000, external: false, questionsReady: true },
+      { id: "order-schema", templateId: "deploymentHistory", agentName: "", source: "Terminal", color: "#2f8e7f", status: "unassigned", targetId: null, stageIndex: 0, readyAt: null, startedAt: null, walking: false, external: false, questionsReady: true },
     ],
   };
 }

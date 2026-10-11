@@ -1,91 +1,83 @@
 import assert from "node:assert/strict";
-import { access, readFile, readdir } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-const developmentPreviewMeta =
-  /<meta(?=[^>]*\bname=["']codex-preview["'])(?=[^>]*\bcontent=["']development["'])[^>]*>/i;
-const templateRoot = new URL("../", import.meta.url);
-const previewRoot = new URL("../app/_sites-preview/", import.meta.url);
+const read = (file) => readFile(new URL(`../${file}`, import.meta.url), "utf8");
 
-async function render() {
-  const workerUrl = new URL("../dist/server/index.js", import.meta.url);
-  workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}`);
-  const { default: worker } = await import(workerUrl.href);
-
-  return worker.fetch(
-    new Request("http://localhost/", {
-      headers: { accept: "text/html" },
-    }),
-    {
-      ASSETS: {
-        fetch: async () => new Response("Not found", { status: 404 }),
-      },
-    },
-    {
-      waitUntil() {},
-      passThroughOnException() {},
-    },
-  );
-}
-
-test("server-renders the starter loading skeleton", async () => {
-  const response = await render();
-  assert.equal(response.status, 200);
-  assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
-
-  const html = await response.text();
-  assert.match(html, developmentPreviewMeta);
-  assert.match(html, /<title>Your site is taking shape<\/title>/i);
-  assert.match(html, /Building your site/);
-  assert.match(html, /Your site is taking shape/);
-  assert.match(
-    html,
-    /Your first version will appear here automatically when it’s ready\./,
-  );
-  assert.doesNotMatch(html, /Codex/);
-  assert.match(html, /react-loading-skeleton/);
-  assert.match(html, /role="status"/);
-});
-
-test("keeps the loading skeleton scoped and disposable", async () => {
-  const [preview, css, page, layout, packageJson, files] = await Promise.all([
-    readFile(new URL("SkeletonPreview.tsx", previewRoot), "utf8"),
-    readFile(new URL("preview.css", previewRoot), "utf8"),
-    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../package.json", import.meta.url), "utf8"),
-    readdir(previewRoot),
+test("ships the Vibe Control District game instead of the starter preview", async () => {
+  const [page, layout, gameData, css] = await Promise.all([
+    read("app/page.tsx"),
+    read("app/layout.tsx"),
+    read("app/game-data.ts"),
+    read("app/globals.css"),
   ]);
 
-  assert.deepEqual(files.sort(), ["SkeletonPreview.tsx", "preview.css"]);
-  assert.match(preview, /from "react-loading-skeleton"/);
-  assert.match(preview, /baseColor="#eceae7"/);
-  assert.match(preview, /highlightColor="#f9f8f6"/);
-  assert.match(preview, /duration=\{2\.8\}/);
-  assert.match(preview, /sites-skeleton-search-placeholder/);
-  assert.match(packageJson, /"react-loading-skeleton": "3\.5\.0"/);
+  assert.match(page, /Vibe Control District/);
+  assert.match(layout, /Vibe Control District — Understand every change/);
+  assert.match(gameData, /villageName: "Vibe Control District"/);
+  assert.match(css, /CODEBLOCK THEME/);
+  assert.doesNotMatch(page, /SkeletonPreview|_sites-preview/);
+  assert.doesNotMatch(layout, /Starter Project|codex-preview/);
+});
 
-  const shellIndex = preview.indexOf('className="sites-skeleton-shell"');
-  const statusIndex = preview.indexOf('className="sites-skeleton-status"');
-  assert.ok(shellIndex >= 0 && statusIndex > shellIndex);
-  assert.match(css, /position:\s*fixed/);
-  assert.match(css, /inset:\s*0/);
-  assert.match(css, /opacity:\s*0\.52/);
-  assert.match(css, /prefers-reduced-motion:\s*reduce/);
-  assert.doesNotMatch(css, /#020617|canvas|pets|progress/i);
-  assert.doesNotMatch(
-    preview,
-    /loading-spinner|status-mark|status-progress|canvas|cookie|random/i,
-  );
+test("shows question-specific changed code before answer choices", async () => {
+  const [page, gameData, css] = await Promise.all([
+    read("app/page.tsx"),
+    read("app/game-data.ts"),
+    read("app/globals.css"),
+  ]);
 
-  assert.match(page, /export const metadata:\s*Metadata/);
-  assert.match(page, /"codex-preview": "development"/);
-  assert.match(page, /<SkeletonPreview \/>/);
-  assert.match(layout, /title:\s*"Starter Project"/);
-  assert.doesNotMatch(layout, /codex-preview|_sites-preview|themeColor|\bViewport\b/);
-  assert.doesNotMatch(css, /(^|\s)(html|body)\s*\{/m);
+  assert.match(gameData, /type ChangeEvidence/);
+  assert.match(gameData, /evidenceByStage/);
+  assert.match(page, /LOOK HERE TO ANSWER/);
+  assert.match(page, /diff-line/);
+  assert.ok(page.indexOf("review-evidence") < page.indexOf("answer-list"));
+  assert.match(css, /\.diff-line\.add/);
+  assert.match(css, /\.diff-line\.remove/);
+});
 
-  await assert.rejects(
-    access(new URL("public/_sites-preview", templateRoot)),
-  );
+test("includes a localhost-only Git watcher connector", async () => {
+  const [packageJson, watcher, route] = await Promise.all([
+    read("package.json"),
+    read("scripts/watch-agents.mjs"),
+    read("app/api/local-events/route.ts"),
+  ]);
+
+  assert.match(packageJson, /"watch:agents": "node scripts\/watch-agents\.mjs"/);
+  assert.match(watcher, /git diff/);
+  assert.match(watcher, /--claude-questions/);
+  assert.match(watcher, /--permission-mode", "plan"/);
+  assert.match(watcher, /base\.startsWith\("\.env\."\)/);
+  assert.match(route, /hostname === "localhost"/);
+  assert.match(route, /Local connector is disabled on hosted deployments/);
+  assert.match(route, /status: "unassigned"/);
+});
+
+test("lets players choose named agents, follow roads, and clear task history", async () => {
+  const [page, gameData, css, route, watcher] = await Promise.all([
+    read("app/page.tsx"),
+    read("app/game-data.ts"),
+    read("app/globals.css"),
+    read("app/api/local-events/route.ts"),
+    read("scripts/watch-agents.mjs"),
+  ]);
+
+  for (const name of ["James", "Ben", "Ollie", "Luc", "Miguel"]) assert.match(gameData, new RegExp(`name: "${name}"`));
+  assert.match(page, /function roadRoute/);
+  assert.match(page, /pointAlongRoute/);
+  assert.match(page, /Choose your builder/);
+  assert.match(page, /Clear finished/);
+  assert.match(page, /Clear demo/);
+  assert.match(page, /Remove task/);
+  assert.match(page, /dismissedOrderIds/);
+  assert.match(page, /role="alertdialog"/);
+  assert.doesNotMatch(page, /window\.confirm/);
+  assert.match(css, /@keyframes roadWalk/);
+  assert.match(css, /\.confirm-scrim/);
+  assert.match(gameData, /"returning"/);
+  assert.match(gameData, /dismissedOrderIds: string\[\]/);
+  assert.match(route, /agentName: ""/);
+  assert.match(route, /phase === "started"/);
+  assert.match(watcher, /phase: "started"/);
+  assert.match(watcher, /phase: "ready"/);
 });
