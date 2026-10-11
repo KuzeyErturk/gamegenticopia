@@ -10,15 +10,19 @@ The point is not to test syntax trivia. It is to make sure you still understand 
 
 ## What is playable today
 
-The current build is a complete interactive demo of the game loop:
+The current build is a complete interactive demo of the expanded game loop:
 
-- three worksites representing Codex, Claude Code, and a macOS terminal
+- a large map that can be panned and zoomed
+- movable completed buildings and decorations
+- a shop, blueprint inventory, and placement mode
+- agent workers representing Codex, Claude Code, and terminal tasks
+- work orders that can be assigned to any free building or construction site
 - Beginner, Builder, and Expert question levels
-- three answer choices for every checkpoint
+- multi-stage checkpoints for large changes and three choices per question
 - explanations after correct and incorrect answers
 - building upgrades, XP, coins, and streaks
 - a final deployment checkpoint after all worksites are cleared
-- progress saved in the browser on the current device
+- village layout, inventory, progress, and work orders saved in the hosted database
 - responsive layouts for desktop and mobile
 
 The **Simulate file change** button currently supplies the events. Live filesystem and agent connections are the next layer; the browser cannot watch files on your Mac by itself.
@@ -26,12 +30,15 @@ The **Simulate file change** button currently supplies the events. Live filesyst
 ## How to play
 
 1. Choose your coding knowledge level from the top-right menu.
-2. Select a worksite on the village map. Each one shows which agent is working, what it is changing, and the affected file.
-3. Read the short description of the change and choose one of three answers.
-4. A correct answer clears that checkpoint, upgrades the building, and awards XP and coins.
-5. A wrong answer does not approve the change. The game gives you a hint and lets you try again.
-6. Clear all three worksites to unlock the Launch Tower.
-7. Answer the final question about the complete release to ship it.
+2. Open a work order to see which agent is working, the affected files, and the size of the change.
+3. Assign an unassigned agent to any free building or unfinished blueprint on the map.
+4. The agent’s character leaves the Builders’ Guild and walks to that project.
+5. When the agent stops, answer the three-choice understanding check to continue construction.
+6. Small changes complete quickly; large changes move through several logical stages.
+7. Correct answers upgrade the target and award XP and coins. Wrong answers pause progress and provide a hint.
+8. Clear the core work orders to unlock the Launch Tower and approve the release.
+
+Use the **Shop** to buy blueprints, **Inventory** to place them, and **Arrange** to move completed village items. A placed blueprint remains unfinished until an agent work order is assigned to it.
 
 You can change the knowledge level at any time:
 
@@ -39,11 +46,11 @@ You can change the knowledge level at any time:
 - **Builder** asks why an implementation choice was made.
 - **Expert** asks about security, data integrity, race conditions, and trade-offs.
 
-Progress is stored in `localStorage`, so refreshing the page does not reset the village. Use **Reset demo** when you want to start another run.
+Progress is stored in Cloudflare D1, so refreshing the page does not reset the village. The hosted private site keeps a separate village for the signed-in owner; local development uses a local D1 database. Use **Reset demo** when you want to start another run.
 
 ## How questions are created
 
-In this first version, the sample questions are written directly in [`app/page.tsx`](app/page.tsx). Each simulated agent task has three versions of the same idea—Beginner, Builder, and Expert—plus:
+In this first version, the sample questions are defined in [`app/game-data.ts`](app/game-data.ts). Each construction stage has three versions of the same idea—Beginner, Builder, and Expert—plus:
 
 - a short, plain-language description of the code change
 - exactly three possible answers
@@ -126,9 +133,12 @@ npm run build
 ## Project map
 
 ```text
-app/page.tsx       game state, questions, rewards, and interactions
+app/page.tsx       game state, map tools, rewards, and interactions
+app/game-data.ts   work orders, staged questions, shop items, and starter village
+app/api/village/   database load and save endpoint
 app/globals.css    village map, buildings, panels, and responsive layout
 app/layout.tsx     page metadata and social sharing settings
+db/                D1 schema and village state storage
 public/og.png      Patchwork Valley share image
 worker/            Cloudflare-compatible server entry
 ```
