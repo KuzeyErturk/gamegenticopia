@@ -13,12 +13,14 @@ The point is not to test syntax trivia. It is to make sure you still understand 
 The current build is a complete interactive demo of the expanded game loop:
 
 - a large map that can be panned and zoomed
-- movable completed buildings and decorations
+- a connected road grid with reserved plots for future buildings
+- movable completed buildings, decorations, and road segments
 - a shop, blueprint inventory, and placement mode
 - agent workers representing Codex, Claude Code, and terminal tasks
 - work orders that can be assigned to any free building or construction site
 - Beginner, Builder, and Expert question levels
 - multi-stage checkpoints for large changes and three choices per question
+- question-specific file snippets with highlighted additions and removals
 - explanations after correct and incorrect answers
 - building upgrades, XP, coins, and streaks
 - a final deployment checkpoint after all worksites are cleared
@@ -33,12 +35,13 @@ The **Simulate file change** button currently supplies the events. Live filesyst
 2. Open a work order to see which agent is working, the affected files, and the size of the change.
 3. Assign an unassigned agent to any free building or unfinished blueprint on the map.
 4. The agent’s character leaves the Builders’ Guild and walks to that project.
-5. When the agent stops, answer the three-choice understanding check to continue construction.
-6. Small changes complete quickly; large changes move through several logical stages.
-7. Correct answers upgrade the target and award XP and coins. Wrong answers pause progress and provide a hint.
-8. Clear the core work orders to unlock the Launch Tower and approve the release.
+5. When the agent stops, inspect the relevant file snippets shown with the question.
+6. Use those highlighted changes to answer the three-choice understanding check.
+7. Small changes complete quickly; large changes move through several logical stages.
+8. Correct answers upgrade the target and award XP and coins. Wrong answers pause progress and provide a hint.
+9. Clear the core work orders to unlock the Launch Tower and approve the release.
 
-Use the **Shop** to buy blueprints, **Inventory** to place them, and **Arrange** to move completed village items. A placed blueprint remains unfinished until an agent work order is assigned to it.
+Use the **Shop** to buy blueprints, **Inventory** to place them, and **Arrange** to move completed village items or roads. Drag a road to reposition it; double-click it to rotate it. A placed blueprint remains unfinished until an agent work order is assigned to it.
 
 You can change the knowledge level at any time:
 
@@ -53,6 +56,7 @@ Progress is stored in Cloudflare D1, so refreshing the page does not reset the v
 In this first version, the sample questions are defined in [`app/game-data.ts`](app/game-data.ts). Each construction stage has three versions of the same idea—Beginner, Builder, and Expert—plus:
 
 - a short, plain-language description of the code change
+- the relevant file path and only the changed lines needed to investigate the question
 - exactly three possible answers
 - one unambiguous correct answer
 - an explanation of why that answer is correct

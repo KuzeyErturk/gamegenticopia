@@ -90,6 +90,8 @@ Pip’i mevcut bir binaya veya Shop’tan aldığın yeni bir blueprint’e atay
 
 ## Sorular nasıl çalışır?
 
+Soru ekranı, cevap vermek için bakman gereken ilgili dosya parçalarını da gösterir. Eklenen satırlar `+`, silinen satırlar `−` ile işaretlenir. Böylece cevabı tahmin etmek yerine değişikliği inceleyebilirsin. Mevcut demo örnek diff’ler kullanır; yerel terminal bağlantısı tamamlandığında bu alan gerçek `git diff` verisini gösterecektir.
+
 Her soruda üç seçenek bulunur:
 
 - A
@@ -205,12 +207,13 @@ Mevcut prototipte Shop akışını denemenin en kolay yolu:
 
 ## Arrange modu
 
-**Arrange** modu tamamlanmış binaları ve dekorasyonları taşımanı sağlar.
+**Arrange** modu tamamlanmış binaları, dekorasyonları ve yol parçalarını taşımanı sağlar.
 
 1. Üst menüdeki **Arrange** butonuna bas.
-2. Taşımak istediğin binayı veya dekorasyonu sürükle.
+2. Taşımak istediğin binayı, dekorasyonu veya yol parçasını sürükle.
 3. Yeni konumuna bırak.
-4. İşin bitince **Done** butonuna bas.
+4. Bir yolu yatay veya dikey çevirmek için yola çift tıkla.
+5. İşin bitince **Done** butonuna bas.
 
 Şunlar taşınamaz:
 
@@ -376,6 +379,8 @@ Pip can be assigned to an existing building or a new blueprint purchased from th
 
 ## How questions work
 
+The question screen also shows the relevant file snippets needed to investigate the answer. Added lines use `+` and removed lines use `−`, so the player can inspect the change instead of guessing. The current demo uses representative diffs; the local terminal connector will replace them with real `git diff` data.
+
 Every question has three choices:
 
 - A
@@ -491,12 +496,13 @@ The easiest way to test the Shop today is:
 
 ## Arrange mode
 
-**Arrange** mode allows completed buildings and decorations to be moved.
+**Arrange** mode allows completed buildings, decorations, and road segments to be moved.
 
 1. Press **Arrange** in the top toolbar.
-2. Drag a completed building or decoration.
+2. Drag a completed building, decoration, or road segment.
 3. Drop it in the new location.
-4. Press **Done** when finished.
+4. Double-click a road to rotate it between horizontal and vertical.
+5. Press **Done** when finished.
 
 The following cannot be moved:
 

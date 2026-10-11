@@ -10,9 +10,21 @@ export type Question = {
   explanation: string;
 };
 
+export type DiffLine = {
+  kind: "add" | "remove" | "context";
+  code: string;
+};
+
+export type ChangeEvidence = {
+  file: string;
+  note: string;
+  lines: DiffLine[];
+};
+
 export type Stage = {
   name: string;
   questions: Record<Difficulty, Question>;
+  evidence: ChangeEvidence[];
 };
 
 export type OrderTemplate = {
@@ -49,6 +61,15 @@ export type VillageObject = {
   fixed?: boolean;
 };
 
+export type RoadSegment = {
+  id: string;
+  x: number;
+  y: number;
+  length: number;
+  orientation: "horizontal" | "vertical";
+  kind: "main" | "lane";
+};
+
 export type InventoryEntry = { itemId: string; quantity: number };
 
 export type GameState = {
@@ -60,6 +81,7 @@ export type GameState = {
   villageName: string;
   releaseApproved: boolean;
   objects: VillageObject[];
+  roads: RoadSegment[];
   inventory: InventoryEntry[];
   orders: WorkOrder[];
 };
@@ -81,12 +103,130 @@ const q = (
   explanation: string,
 ): Question => ({ prompt, context, answers, correct, explanation });
 
+const evidenceByStage: Record<string, ChangeEvidence[]> = {
+  "Reset request": [
+    {
+      file: "auth/reset-password.ts",
+      note: "The endpoint sends a reset email only for a real account, but always returns the same public response.",
+      lines: [
+        { kind: "context", code: "const account = await users.findByEmail(email);" },
+        { kind: "add", code: "if (account) await sendResetEmail(account);" },
+        { kind: "add", code: "return { ok: true, message: 'If the account exists, check your inbox.' };" },
+      ],
+    },
+  ],
+  "Token safety": [
+    {
+      file: "auth/reset-password.ts",
+      note: "The usable token is no longer stored directly, and every reset link has a short lifetime and single-use check.",
+      lines: [
+        { kind: "remove", code: "await resetTokens.save({ token, userId });" },
+        { kind: "add", code: "await resetTokens.save({ digest: sha256(token), userId, expiresAt: addMinutes(15) });" },
+        { kind: "add", code: "if (record.usedAt || record.expiresAt < new Date()) throw new InvalidTokenError();" },
+      ],
+    },
+  ],
+  "Filter behavior": [
+    {
+      file: "components/FilterTray.tsx",
+      note: "The chosen category is written to the URL, so the same filtered search can be refreshed or shared.",
+      lines: [
+        { kind: "add", code: "params.set('category', selectedCategory);" },
+        { kind: "add", code: "router.replace(`?${params.toString()}`);" },
+      ],
+    },
+    {
+      file: "lib/query.ts",
+      note: "The API converts incoming category values into one predictable form before searching.",
+      lines: [
+        { kind: "add", code: "const category = normalizeCategory(searchParams.get('category'));" },
+        { kind: "add", code: "return products.where({ category });" },
+      ],
+    },
+  ],
+  "Request timing": [
+    {
+      file: "hooks/useSearch.ts",
+      note: "Search now waits until typing has paused for 300ms instead of requesting on every key press.",
+      lines: [
+        { kind: "remove", code: "fetchResults(query);" },
+        { kind: "add", code: "const timer = setTimeout(() => fetchResults(query), 300);" },
+        { kind: "add", code: "return () => clearTimeout(timer);" },
+      ],
+    },
+  ],
+  "Stale result safety": [
+    {
+      file: "hooks/useSearch.ts",
+      note: "Starting a newer search cancels the previous request so an older response cannot replace current results.",
+      lines: [
+        { kind: "add", code: "const controller = new AbortController();" },
+        { kind: "add", code: "fetch(`/api/search?${query}`, { signal: controller.signal });" },
+        { kind: "add", code: "return () => controller.abort();" },
+      ],
+    },
+  ],
+  "Release inspection": [
+    {
+      file: "components/FilterTray.tsx",
+      note: "The visible filter and URL now describe the same search state.",
+      lines: [{ kind: "add", code: "router.replace(`?${params.toString()}`);" }],
+    },
+    {
+      file: "hooks/useSearch.ts",
+      note: "Timing and cancellation protect the result list from redundant and stale requests.",
+      lines: [
+        { kind: "add", code: "const timer = setTimeout(runSearch, 300);" },
+        { kind: "add", code: "return () => controller.abort();" },
+      ],
+    },
+  ],
+  "Schema update": [
+    {
+      file: "db/schema.ts",
+      note: "Projects can record a real deployment time, while projects that never deployed keep a truthful null value.",
+      lines: [
+        { kind: "add", code: "lastDeployedAt: integer('last_deployed_at', { mode: 'timestamp' })," },
+        { kind: "context", code: "// Nullable: existing projects may never have deployed." },
+      ],
+    },
+  ],
+  "Construction check": [
+    {
+      file: "village/layout.json",
+      note: "The completed state and map coordinates are part of the saved village snapshot.",
+      lines: [
+        { kind: "remove", code: "{ \"id\": \"library-b\", \"built\": false }" },
+        { kind: "add", code: "{ \"id\": \"library-b\", \"built\": true, \"x\": 1040, \"y\": 530 }" },
+      ],
+    },
+  ],
+};
+
+export const releaseEvidence: ChangeEvidence[] = [
+  {
+    file: "auth/reset-password.ts",
+    note: "Account recovery now uses a neutral response and expiring token digest.",
+    lines: [{ kind: "add", code: "return neutralResetResponse(); // never reveals whether the account exists" }],
+  },
+  {
+    file: "hooks/useSearch.ts",
+    note: "Search waits briefly and cancels stale requests.",
+    lines: [{ kind: "add", code: "return () => controller.abort();" }],
+  },
+  {
+    file: "db/schema.ts",
+    note: "Deployment history records the last successful release without inventing old dates.",
+    lines: [{ kind: "add", code: "lastDeployedAt: integer('last_deployed_at', { mode: 'timestamp' })," }],
+  },
+];
+
 const stage = (
   name: string,
   beginner: Question,
   builder: Question,
   expert: Question,
-): Stage => ({ name, questions: { Beginner: beginner, Builder: builder, Expert: expert } });
+): Stage => ({ name, questions: { Beginner: beginner, Builder: builder, Expert: expert }, evidence: evidenceByStage[name] ?? [] });
 
 export const orderTemplates: Record<string, OrderTemplate> = {
   passwordReset: {
@@ -209,6 +349,18 @@ export function createInitialGameState(): GameState {
       { id: "tree-a", kind: "tree", name: "Apple Tree", category: "decoration", x: 250, y: 690, level: 1, built: true },
       { id: "bench-a", kind: "bench", name: "Park Bench", category: "decoration", x: 860, y: 680, level: 1, built: true },
       { id: "lamp-a", kind: "lamp", name: "Village Lamp", category: "decoration", x: 940, y: 325, level: 1, built: true },
+    ],
+    roads: [
+      { id: "road-main", x: 100, y: 455, length: 1400, orientation: "horizontal", kind: "main" },
+      { id: "road-north", x: 180, y: 230, length: 1260, orientation: "horizontal", kind: "lane" },
+      { id: "road-south", x: 220, y: 695, length: 1220, orientation: "horizontal", kind: "lane" },
+      { id: "road-west", x: 315, y: 205, length: 535, orientation: "vertical", kind: "lane" },
+      { id: "road-cottage", x: 520, y: 455, length: 285, orientation: "vertical", kind: "lane" },
+      { id: "road-center", x: 800, y: 205, length: 535, orientation: "vertical", kind: "main" },
+      { id: "road-library", x: 1100, y: 205, length: 535, orientation: "vertical", kind: "lane" },
+      { id: "road-east", x: 1360, y: 115, length: 625, orientation: "vertical", kind: "lane" },
+      { id: "road-future-west", x: 95, y: 580, length: 470, orientation: "horizontal", kind: "lane" },
+      { id: "road-future-east", x: 800, y: 345, length: 600, orientation: "horizontal", kind: "lane" },
     ],
     inventory: [],
     orders: [

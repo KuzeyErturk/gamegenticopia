@@ -4,7 +4,6 @@ import {
   Activity,
   Armchair,
   ArrowLeft,
-  Bot,
   Check,
   ChevronDown,
   CircleHelp,
@@ -30,7 +29,6 @@ import {
   ShoppingBag,
   Sparkles,
   Store,
-  Terminal,
   Timer,
   Trees,
   Trophy,
@@ -42,18 +40,29 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   createInitialGameState,
   orderTemplates,
+  releaseEvidence,
   shopItems,
   villageLevel,
   type Difficulty,
   type GameState,
   type PanelMode,
   type Question,
+  type RoadSegment,
   type VillageObject,
   type WorkOrder,
 } from "./game-data";
 
 type AnswerState = "idle" | "correct" | "wrong";
 type Point = { x: number; y: number };
+
+const futureLots = [
+  { id: "future-1", x: 110, y: 300 },
+  { id: "future-2", x: 575, y: 105 },
+  { id: "future-3", x: 910, y: 175 },
+  { id: "future-4", x: 1160, y: 350 },
+  { id: "future-5", x: 660, y: 710 },
+  { id: "future-6", x: 1450, y: 520 },
+];
 
 const releaseQuestion: Record<Difficulty, Question> = {
   Beginner: {
@@ -78,12 +87,6 @@ const releaseQuestion: Record<Difficulty, Question> = {
     explanation: "Each change crosses a boundary where stale, false, or unauthorized state would matter.",
   },
 };
-
-function sourceIcon(source: WorkOrder["source"]) {
-  if (source === "Terminal") return <Terminal size={14} />;
-  if (source === "Claude") return <Sparkles size={14} />;
-  return <Bot size={14} />;
-}
 
 function ObjectGlyph({ kind, size = 22 }: { kind: string; size?: number }) {
   if (kind === "tree") return <Trees size={size} />;
@@ -125,6 +128,7 @@ export default function Home() {
   const [zoom, setZoom] = useState(0.72);
   const [pan, setPan] = useState<Point>({ x: 0, y: 0 });
   const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [draggingRoadId, setDraggingRoadId] = useState<string | null>(null);
   const [dragOffset, setDragOffset] = useState<Point>({ x: 0, y: 0 });
   const [panDrag, setPanDrag] = useState<{ start: Point; origin: Point } | null>(null);
   const [toast, setToast] = useState("Milo finished a code stage. One question is waiting.");
@@ -147,7 +151,10 @@ export default function Home() {
       .then((response) => response.json())
       .then((payload) => {
         if (!active) return;
-        if (payload.state?.version === 2) setGame(payload.state);
+        if (payload.state?.version === 2) {
+          const fallback = createInitialGameState();
+          setGame({ ...fallback, ...payload.state, roads: Array.isArray(payload.state.roads) ? payload.state.roads : fallback.roads });
+        }
         setHydrated(true);
         setSaveStatus("saved");
       })
@@ -206,22 +213,24 @@ export default function Home() {
   }, [pan, zoom]);
 
   useEffect(() => {
-    if (!draggingId && !panDrag) return;
+    if (!draggingId && !draggingRoadId && !panDrag) return;
     const move = (event: PointerEvent) => {
-      if (draggingId) {
+      if (draggingId || draggingRoadId) {
         const point = clientToStage(event.clientX, event.clientY);
         const x = Math.max(40, Math.min(1480, Math.round((point.x - dragOffset.x) / 20) * 20));
         const y = Math.max(40, Math.min(820, Math.round((point.y - dragOffset.y) / 20) * 20));
-        setGame((current) => ({ ...current, objects: current.objects.map((object) => object.id === draggingId ? { ...object, x, y } : object) }));
+        setGame((current) => draggingId
+          ? { ...current, objects: current.objects.map((object) => object.id === draggingId ? { ...object, x, y } : object) }
+          : { ...current, roads: current.roads.map((road) => road.id === draggingRoadId ? { ...road, x, y } : road) });
       } else if (panDrag) {
         setPan({ x: panDrag.origin.x + event.clientX - panDrag.start.x, y: panDrag.origin.y + event.clientY - panDrag.start.y });
       }
     };
-    const up = () => { setDraggingId(null); setPanDrag(null); };
+    const up = () => { setDraggingId(null); setDraggingRoadId(null); setPanDrag(null); };
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up, { once: true });
     return () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); };
-  }, [clientToStage, dragOffset, draggingId, panDrag]);
+  }, [clientToStage, dragOffset, draggingId, draggingRoadId, panDrag]);
 
   useEffect(() => {
     if (!toast) return;
@@ -364,6 +373,28 @@ export default function Home() {
     setDragOffset({ x: point.x - object.x, y: point.y - object.y });
   }
 
+  function startRoadDrag(event: React.PointerEvent, road: RoadSegment) {
+    if (!arrangeMode) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const point = clientToStage(event.clientX, event.clientY);
+    setDraggingRoadId(road.id);
+    setDragOffset({ x: point.x - road.x, y: point.y - road.y });
+  }
+
+  function rotateRoad(event: React.MouseEvent | React.KeyboardEvent, roadId: string) {
+    if (!arrangeMode) return;
+    event.preventDefault();
+    event.stopPropagation();
+    setGame((current) => ({
+      ...current,
+      roads: current.roads.map((road) => road.id === roadId
+        ? { ...road, orientation: road.orientation === "horizontal" ? "vertical" : "horizontal" }
+        : road),
+    }));
+    setToast("Road rotated. Drag it to reconnect the district.");
+  }
+
   function resetVillage() {
     setGame(createInitialGameState());
     setPanelMode("orders");
@@ -417,7 +448,7 @@ export default function Home() {
       <div className="panel-scroll">
         <button className="back-button" onClick={() => { setPanelMode("orders"); setAssigningOrderId(null); }}><ArrowLeft size={15} /> All work orders</button>
         <div className="agent-hero" style={{ "--agent": selectedOrder.color } as React.CSSProperties}>
-          <div className="portrait"><span className="pixel-avatar"><i /><i /><i /></span></div>
+          <div className="portrait"><span className={`pixel-avatar avatar-${selectedOrder.agentName.toLowerCase()}`}><i /><i /><i /></span></div>
           <div><span>{selectedOrder.source} worker</span><strong>{selectedOrder.agentName}</strong></div>
           <b className={`status-tag ${selectedOrder.status}`}>{statusCopy(selectedOrder)}</b>
         </div>
@@ -455,11 +486,30 @@ export default function Home() {
   }
 
   function renderQuiz(question: Question, label: string) {
+    const evidence = releaseOpen ? releaseEvidence : selectedStage?.evidence ?? [];
     return (
       <div className="quiz-block">
         <div className="question-meta"><CircleHelp size={15} /><span>{label}</span><b>{game.difficulty}</b></div>
         <h3>{question.prompt}</h3>
         <p>{question.context}</p>
+        {evidence.length > 0 && (
+          <section className="review-evidence" aria-label="Code changes related to this question">
+            <div className="review-evidence-heading"><div><span>LOOK HERE TO ANSWER</span><strong>Relevant changes</strong></div><small>{evidence.length} {evidence.length === 1 ? "file" : "files"}</small></div>
+            <div className="evidence-files">
+              {evidence.map((item) => (
+                <article className="evidence-file" key={`${item.file}-${item.note}`}>
+                  <header><FileCode2 size={13} /><code>{item.file}</code></header>
+                  <p>{item.note}</p>
+                  <div className="diff-lines" role="region" aria-label={`Relevant diff from ${item.file}`}>
+                    {item.lines.map((line, index) => (
+                      <div className={`diff-line ${line.kind}`} key={`${line.code}-${index}`}><span>{line.kind === "add" ? "+" : line.kind === "remove" ? "−" : " "}</span><code>{line.code}</code></div>
+                    ))}
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
+        )}
         <div className="answer-list" role="radiogroup" aria-label="Answer choices">
           {question.answers.map((choice, index) => {
             const correct = index === question.correct;
@@ -519,7 +569,17 @@ export default function Home() {
             >
               <div className="terrain-grid" />
               <div className="river"><i /><i /><i /></div>
-              <div className="road road-one" /><div className="road road-two" /><div className="road road-three" />
+              {game.roads.map((road) => (
+                <div
+                  key={road.id}
+                  className={`road-segment ${road.orientation} ${road.kind} ${draggingRoadId === road.id ? "dragging" : ""}`}
+                  style={{ left: road.x, top: road.y, "--road-length": `${road.length}px` } as React.CSSProperties}
+                  onPointerDown={(event) => startRoadDrag(event, road)}
+                  onDoubleClick={(event) => rotateRoad(event, road.id)}
+                  aria-label={`${road.kind === "main" ? "Main road" : "Road"}, ${road.orientation}. ${arrangeMode ? "Drag to move, double click to rotate." : ""}`}
+                ><span /><button className="road-rotate" onPointerDown={(event) => event.stopPropagation()} onClick={(event) => rotateRoad(event, road.id)} aria-label="Rotate road"><RotateCcw size={13} /></button></div>
+              ))}
+              {futureLots.map((lot) => <div key={lot.id} className="future-lot" style={{ left: lot.x, top: lot.y }}><span>+</span><small>FUTURE PLOT</small></div>)}
               <div className="field-large"><i /><i /><i /><i /><i /><i /></div>
               <div className="map-sign"><strong>VIBE CONTROL DISTRICT</strong><span>build fast · understand everything</span></div>
               {game.objects.map((object) => {
@@ -551,7 +611,7 @@ export default function Home() {
                 const top = atSite && target ? target.y + 72 : guild.y + 112;
                 return (
                   <button key={order.id} className={`worker ${order.status}`} style={{ left, top, "--agent": order.color } as React.CSSProperties} onClick={(event) => { event.stopPropagation(); openOrder(order.id); }} aria-label={`${order.agentName}, ${statusCopy(order)}`}>
-                    <span className="worker-head" /><span className="worker-body"><span className="pixel-avatar"><i /><i /><i /></span></span><b>{sourceIcon(order.source)}</b>
+                    <span className={`pixel-avatar avatar-${order.agentName.toLowerCase()}`}><i /><i /><i /></span>
                     {(order.status === "review" || order.status === "unassigned") && <em>{order.status === "review" ? "Question!" : "Assign me"}</em>}
                   </button>
                 );
@@ -563,7 +623,7 @@ export default function Home() {
               <button onClick={() => setZoom((value) => Math.max(.48, value - .1))} aria-label="Zoom out"><Minus size={16} /></button>
               <button onClick={() => { setZoom(.72); setPan({ x: 0, y: 0 }); }} aria-label="Center map"><Grid3X3 size={16} /></button>
             </div>
-            {(assigningOrderId || placementItemId || arrangeMode) && <div className="mode-banner">{assigningOrderId ? "Choose a highlighted village project" : placementItemId ? "Place this blueprint on open land" : "Drag completed buildings and decorations"}<button onClick={() => { setAssigningOrderId(null); setPlacementItemId(null); setArrangeMode(false); }}><X size={14} /> Done</button></div>}
+            {(assigningOrderId || placementItemId || arrangeMode) && <div className="mode-banner">{assigningOrderId ? "Choose a highlighted village project" : placementItemId ? "Place this blueprint on open land" : "Drag buildings or roads · double-click a road to rotate"}<button onClick={() => { setAssigningOrderId(null); setPlacementItemId(null); setArrangeMode(false); }}><X size={14} /> Done</button></div>}
           </div>
 
           <div className="activity-strip"><div className="activity-icon"><Activity size={18} /></div><div><span>VILLAGE ACTIVITY</span><strong>{toast || "Agents turn code into progress. Your understanding finishes the work."}</strong></div><div className="agent-dots">{game.orders.slice(0, 4).map((order) => <button key={order.id} style={{ "--agent": order.color } as React.CSSProperties} onClick={() => openOrder(order.id)}><CircleUserRound size={15} />{order.agentName}</button>)}</div></div>
@@ -572,7 +632,7 @@ export default function Home() {
         <aside className="side-panel">
           <div className="panel-heading"><div><p className="eyebrow">{panelMode === "shop" ? "VILLAGE MARKET" : panelMode === "inventory" ? "YOUR BLUEPRINTS" : panelMode === "order" ? releaseOpen ? "LAUNCH TOWER" : "AGENT PROJECT" : "ACTIVE DEVELOPMENT"}</p><h2>{panelMode === "shop" ? "Build something lovely" : panelMode === "inventory" ? "Ready to place" : panelMode === "order" ? releaseOpen ? "Release inspection" : "Worksite details" : "Work orders"}</h2></div><span className="panel-count">{panelMode === "shop" ? `${shopItems.length} items` : panelMode === "inventory" ? `${inventoryCount} owned` : `${game.orders.length} tasks`}</span></div>
 
-          {showGuide && <div className="guide-card"><ShieldCheck size={22} /><p><strong>How the new loop works</strong><br />An agent takes a code task to any village project. When the agent stops, a question unlocks the next construction stage. Large changes have several stages.</p><button onClick={() => setShowGuide(false)}><X size={15} /></button></div>}
+          {showGuide && <div className="guide-card"><ShieldCheck size={22} /><p><strong>How the new loop works</strong><br />An agent takes a code task to any district project. When the agent stops, a question unlocks the next construction stage. Use Arrange to drag buildings and roads; double-click a road to rotate it.</p><button onClick={() => setShowGuide(false)}><X size={15} /></button></div>}
 
           {panelMode === "orders" && (
             <div className="panel-scroll order-list">
@@ -580,7 +640,7 @@ export default function Home() {
               {game.orders.map((order) => {
                 const template = orderTemplates[order.templateId];
                 const target = game.objects.find((object) => object.id === order.targetId);
-                return <button key={order.id} className={`order-card ${order.status}`} onClick={() => openOrder(order.id)} style={{ "--agent": order.color } as React.CSSProperties}><span className="mini-worker"><span className="pixel-avatar"><i /><i /><i /></span></span><div><p>{order.agentName} · {order.source}</p><strong>{template.title}</strong><small>{target ? `${target.name} · ` : ""}{statusCopy(order)}</small></div><span className="file-count">{template.fileCount}<small>files</small></span></button>;
+                return <button key={order.id} className={`order-card ${order.status}`} onClick={() => openOrder(order.id)} style={{ "--agent": order.color } as React.CSSProperties}><span className="mini-worker"><span className={`pixel-avatar avatar-${order.agentName.toLowerCase()}`}><i /><i /><i /></span></span><div><p>{order.agentName} · {order.source}</p><strong>{template.title}</strong><small>{target ? `${target.name} · ` : ""}{statusCopy(order)}</small></div><span className="file-count">{template.fileCount}<small>files</small></span></button>;
               })}
               <button className="incoming-card" onClick={() => setToast("The live terminal connector is the next integration. This demo already supports the work orders it will create.")}><Plus size={18} /><span><strong>Incoming agent slot</strong><small>Ready for the future local connector</small></span></button>
             </div>
