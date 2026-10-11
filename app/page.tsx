@@ -35,7 +35,6 @@ import {
   Trees,
   Trophy,
   Warehouse,
-  Wheat,
   X,
   Zap,
 } from "lucide-react";
@@ -97,6 +96,10 @@ function ObjectGlyph({ kind, size = 22 }: { kind: string; size?: number }) {
   if (kind === "tower") return <Trophy size={size} />;
   if (kind === "forge") return <Hammer size={size} />;
   return <House size={size} />;
+}
+
+function CodeBlockMark() {
+  return <span className="code-block-mark" aria-hidden="true">{Array.from({ length: 13 }, (_, index) => <i key={index} />)}</span>;
 }
 
 function statusCopy(order: WorkOrder) {
@@ -414,7 +417,7 @@ export default function Home() {
       <div className="panel-scroll">
         <button className="back-button" onClick={() => { setPanelMode("orders"); setAssigningOrderId(null); }}><ArrowLeft size={15} /> All work orders</button>
         <div className="agent-hero" style={{ "--agent": selectedOrder.color } as React.CSSProperties}>
-          <div className="portrait"><CircleUserRound size={27} /></div>
+          <div className="portrait"><span className="pixel-avatar"><i /><i /><i /></span></div>
           <div><span>{selectedOrder.source} worker</span><strong>{selectedOrder.agentName}</strong></div>
           <b className={`status-tag ${selectedOrder.status}`}>{statusCopy(selectedOrder)}</b>
         </div>
@@ -473,7 +476,7 @@ export default function Home() {
   return (
     <main className="game-shell">
       <header className="topbar">
-        <div className="brand-block"><div className="brand-mark"><Wheat size={23} /></div><div><p className="eyebrow">YOUR LIVING CODEBASE</p><h1>Patchwork Valley</h1></div></div>
+        <div className="brand-block"><div className="brand-mark"><CodeBlockMark /></div><div><p className="eyebrow">LOCALHOST / YOUR LIVING CODEBASE</p><h1>Patchwork Valley</h1></div></div>
         <div className="header-metrics">
           <div className="metric coins"><Coins size={17} /><strong>{game.coins}</strong><span>coins</span></div>
           <div className="metric"><Zap size={17} /><strong>{game.xp}</strong><span>XP</span></div>
@@ -548,7 +551,7 @@ export default function Home() {
                 const top = atSite && target ? target.y + 72 : guild.y + 112;
                 return (
                   <button key={order.id} className={`worker ${order.status}`} style={{ left, top, "--agent": order.color } as React.CSSProperties} onClick={(event) => { event.stopPropagation(); openOrder(order.id); }} aria-label={`${order.agentName}, ${statusCopy(order)}`}>
-                    <span className="worker-head" /><span className="worker-body"><CircleUserRound size={18} /></span><b>{sourceIcon(order.source)}</b>
+                    <span className="worker-head" /><span className="worker-body"><span className="pixel-avatar"><i /><i /><i /></span></span><b>{sourceIcon(order.source)}</b>
                     {(order.status === "review" || order.status === "unassigned") && <em>{order.status === "review" ? "Question!" : "Assign me"}</em>}
                   </button>
                 );
@@ -577,7 +580,7 @@ export default function Home() {
               {game.orders.map((order) => {
                 const template = orderTemplates[order.templateId];
                 const target = game.objects.find((object) => object.id === order.targetId);
-                return <button key={order.id} className={`order-card ${order.status}`} onClick={() => openOrder(order.id)} style={{ "--agent": order.color } as React.CSSProperties}><span className="mini-worker"><CircleUserRound size={22} /></span><div><p>{order.agentName} · {order.source}</p><strong>{template.title}</strong><small>{target ? `${target.name} · ` : ""}{statusCopy(order)}</small></div><span className="file-count">{template.fileCount}<small>files</small></span></button>;
+                return <button key={order.id} className={`order-card ${order.status}`} onClick={() => openOrder(order.id)} style={{ "--agent": order.color } as React.CSSProperties}><span className="mini-worker"><span className="pixel-avatar"><i /><i /><i /></span></span><div><p>{order.agentName} · {order.source}</p><strong>{template.title}</strong><small>{target ? `${target.name} · ` : ""}{statusCopy(order)}</small></div><span className="file-count">{template.fileCount}<small>files</small></span></button>;
               })}
               <button className="incoming-card" onClick={() => setToast("The live terminal connector is the next integration. This demo already supports the work orders it will create.")}><Plus size={18} /><span><strong>Incoming agent slot</strong><small>Ready for the future local connector</small></span></button>
             </div>
