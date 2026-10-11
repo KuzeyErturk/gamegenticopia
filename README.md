@@ -145,6 +145,8 @@ worker/            Cloudflare-compatible server entry
 
 ## What comes next
 
+The accepted architecture for the real product is documented in [`docs/LOCAL_FIRST_DIRECTION.md`](docs/LOCAL_FIRST_DIRECTION.md).
+
 - a local file watcher and terminal companion
 - real Codex and Claude session adapters
 - questions generated from actual diffs
