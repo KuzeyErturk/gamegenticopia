@@ -79,6 +79,7 @@ function normalizeOrders(orders: WorkOrder[]) {
       startedAt: order.startedAt ?? null,
       walking: order.walking ?? false,
       travelEndsAt: order.travelEndsAt ?? null,
+      worksiteEnteredAt: order.worksiteEnteredAt ?? null,
       returnStartedAt: order.returnStartedAt ?? null,
       returnEndsAt: order.returnEndsAt ?? null,
       external: order.external ?? order.id.startsWith("live-"),
@@ -347,17 +348,22 @@ export default function Home() {
           const visibleRemoteOrders = normalizeOrders(remoteOrders.filter((order) => order.id.startsWith("live-") && !dismissedOrderIdsRef.current.has(order.id)));
           const incoming = visibleRemoteOrders.filter((order) => !knownOrderIdsRef.current.has(order.id));
           const readyUpdates = visibleRemoteOrders.filter((order) => order.questionsReady && !readyQuestionIdsRef.current.has(order.id));
-          if (!incoming.length && !readyUpdates.length) return;
+          const remoteIds = new Set(visibleRemoteOrders.map((order) => order.id));
           incoming.forEach((order) => knownOrderIdsRef.current.add(order.id));
           readyUpdates.forEach((order) => readyQuestionIdsRef.current.add(order.id));
           const readyIds = new Set(readyUpdates.map((order) => order.id));
-          setGame((current) => ({
-            ...current,
-            orders: [...current.orders.map((order) => readyIds.has(order.id) ? { ...order, questionsReady: true } : order), ...incoming],
-            liveTemplates: { ...current.liveTemplates, ...remoteTemplates },
-          }));
+          setGame((current) => {
+            const removedIds = current.orders.filter((order) => order.id.startsWith("live-") && !remoteIds.has(order.id)).map((order) => order.id);
+            if (!incoming.length && !readyUpdates.length && !removedIds.length) return current;
+            const removed = new Set(removedIds);
+            return {
+              ...current,
+              orders: [...current.orders.filter((order) => !removed.has(order.id)).map((order) => readyIds.has(order.id) ? { ...order, questionsReady: true } : order), ...incoming],
+              liveTemplates: { ...current.liveTemplates, ...remoteTemplates },
+            };
+          });
           if (incoming.length) setToast(`${incoming.length} coding session ${incoming.length === 1 ? "has" : "have"} started. Choose an agent and worksite.`);
-          else if (readyUpdates.length) setToast("File writing stopped. Questions are ready; an assigned worker will return to the Guild.");
+          else if (readyUpdates.length) setToast("The coding turn finished. Questions are ready; the assigned worker will return to the Guild.");
         })
         .catch(() => undefined);
     };
@@ -393,13 +399,15 @@ export default function Home() {
           if (order.status === "working" && order.external) {
             if (order.walking && order.travelEndsAt && order.travelEndsAt <= now) {
               changed = true;
-              return order.questionsReady
-                ? { ...order, status: "returning" as const, walking: false, startedAt: null, travelEndsAt: null, returnStartedAt: now, returnEndsAt: now + 6000 }
-                : { ...order, walking: false, startedAt: null, travelEndsAt: null };
+              return { ...order, walking: false, startedAt: null, travelEndsAt: null, worksiteEnteredAt: now };
             }
-            if (!order.walking && order.questionsReady) {
+            if (!order.walking && !order.worksiteEnteredAt) {
               changed = true;
-              return { ...order, status: "returning" as const, returnStartedAt: now, returnEndsAt: now + 6000 };
+              return { ...order, worksiteEnteredAt: now };
+            }
+            if (!order.walking && order.questionsReady && order.worksiteEnteredAt && now - order.worksiteEnteredAt >= 3500) {
+              changed = true;
+              return { ...order, status: "returning" as const, worksiteEnteredAt: null, returnStartedAt: now, returnEndsAt: now + 6000 };
             }
           }
           if (order.status === "returning" && order.returnEndsAt && order.returnEndsAt <= now) {
@@ -493,6 +501,7 @@ export default function Home() {
         status: "working",
         startedAt,
         travelEndsAt: startedAt + 7000,
+        worksiteEnteredAt: null,
         readyAt: order.external ? null : startedAt + 11000,
         walking: true,
       } : order),
@@ -784,13 +793,13 @@ export default function Home() {
         {selectedOrder.status === "working" && (
           <div className="working-card">
             <div className="worker-clock">{selectedOrder.external ? <Activity size={24} /> : <Timer size={24} />}<strong>{selectedOrder.external ? selectedOrder.walking ? "GO" : "LIVE" : `${seconds}s`}</strong></div>
-            <div><p className="eyebrow">{selectedOrder.walking ? "WALKING TO WORKSITE" : "AGENT IS WRITING"}</p><h4>{selectedOrder.questionsReady ? "Questions generated" : selectedStage?.name}</h4><span>{selectedOrder.walking ? `${selectedOrder.agentName} is following the roads to ${target?.name ?? "the worksite"}.` : selectedOrder.external ? "The game is waiting for the real Git diff to stop changing. There is no fake countdown." : `${selectedOrder.agentName} is building at ${target?.name ?? "the worksite"}. The next question appears when the agent stops.`}</span></div>
+            <div><p className="eyebrow">{selectedOrder.walking ? "WALKING TO WORKSITE" : "AGENT IS WORKING"}</p><h4>{selectedOrder.questionsReady ? "Questions generated" : selectedStage?.name}</h4><span>{selectedOrder.walking ? `${selectedOrder.agentName} is following the roads to ${target?.name ?? "the worksite"}.` : selectedOrder.external ? "The game is following the real coding turn. The worker stays here until the agent finishes, then carries the questions back to the Guild." : `${selectedOrder.agentName} is building at ${target?.name ?? "the worksite"}. The next question appears when the agent stops.`}</span></div>
             <div className={`work-progress ${selectedOrder.external && !selectedOrder.questionsReady ? "indeterminate" : ""}`}><i style={{ width: selectedOrder.external ? "48%" : `${Math.max(8, 100 - seconds * 10)}%` }} /></div>
             {!selectedOrder.external && <button className="secondary-button" onClick={() => finishSimulatedWork(selectedOrder.id)}>Finish simulated agent run</button>}
           </div>
         )}
         {selectedOrder.status === "returning" && (
-          <div className="returning-card"><div className="worker-clock"><ArrowLeft size={24} /><strong>{returnSeconds}s</strong></div><div><p className="eyebrow">QUESTIONS READY</p><h4>Returning to the Guild</h4><span>The file changes stopped and the review was generated. {selectedOrder.agentName} is walking back along the roads; the question opens on arrival.</span></div></div>
+          <div className="returning-card"><div className="worker-clock"><ArrowLeft size={24} /><strong>{returnSeconds}s</strong></div><div><p className="eyebrow">QUESTIONS READY</p><h4>Returning to the Guild</h4><span>The coding turn finished and the review was generated. {selectedOrder.agentName} is walking back along the roads; the question opens on arrival.</span></div></div>
         )}
         {selectedOrder.status === "review" && selectedOrder.questionsReady && selectedQuestion && renderQuiz(selectedQuestion, `Stage ${selectedOrder.stageIndex + 1} of ${selectedTemplate.stages.length} · ${selectedStage?.name}`)}
         {selectedOrder.status === "complete" && (

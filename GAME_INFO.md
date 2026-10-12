@@ -185,7 +185,7 @@ Oyun, James’e atanmış password recovery, Ben’e atanmış product search ve
 
 Üç görevi de tamamladıktan sonra yeni bir blueprint yerleştirirsen onu yapacak boş bir ajan görevi bulunmayabilir. Böyle bir durumda blueprint haritada bekler.
 
-Yerel watcher çalıştırıldığında her kararlı kod değişikliği köye yeni bir iş emri getirir. Böylece yeni blueprint’ler gerçek Claude, Codex veya terminal görevleriyle tamamlanabilir.
+Claude Code hook’ları kurulduğunda her prompt, daha kod yazılmadan köye yeni bir iş emri getirir. Codex ve genel terminal araçlarında ise yerel watcher kararlı kod değişikliklerini iş emrine dönüştürür. Böylece yeni blueprint’ler gerçek ajan görevleriyle tamamlanabilir.
 
 Mevcut prototipte Shop akışını denemenin en kolay yolu:
 
@@ -227,16 +227,16 @@ cd /Users/kuzeyerturk/Desktop/gamegenticAI
 npm run dev
 ```
 
-İkinci terminalde watcher’ı başlat. Proje yolunu Claude Code ile çalıştığın Git reposunun gerçek yoluyla değiştir:
+İkinci terminalde lifecycle hook’larını Claude Code ile çalıştığın Git reposuna kur. Bu komut hedef projede yalnızca `.claude/settings.local.json` dosyasını oluşturur veya günceller:
 
 ```bash
 cd /Users/kuzeyerturk/Desktop/gamegenticAI
-npm run watch:agents -- --project /projenin/tam/yolu --source Claude --claude-questions
+npm run install:claude-hooks -- --project /projenin/tam/yolu --claude-questions
 ```
 
-Claude Code ile o projede normal şekilde çalışmaya devam et. Watcher ilk Git değişikliğini gördüğü anda oyunda atanmamış bir görev açar; Claude hâlâ yazarken işçiyi ve binayı seçebilirsin. Diff birkaç saniye değişmeden kaldığında sorular üretilir. Seçilen işçi yol üzerinden Guild’e döner ve vardığında inceleme açılır.
+Kurulumdan sonra hedef projedeki Claude Code’u yeniden başlat. İstersen Claude Code içinde `/hooks` yazarak `UserPromptSubmit` ve `Stop` hook’larını görebilirsin. Prompt’u gönderdiğin anda, Claude henüz kodu okumaya ve yazmaya başlamadan oyunda atanmamış görev açılır. Claude cevabını bitirdiğinde `Stop` olayı gelir; o prompt sırasında değişen dosyalardan sorular hazırlanır. Seçilen işçi yol üzerinden Guild’e döner ve vardığında inceleme açılır. Prompt hiçbir dosyayı değiştirmediyse geçici görev otomatik kaldırılır.
 
-`--claude-questions` seçeneği diff’i oturum açtığın Claude Code üzerinden işleyerek daha anlamlı sorular üretir. Bu seçenek kullanılmazsa diff Mac’ten ayrılmaz ve basit sorular tamamen yerel olarak hazırlanır.
+`--claude-questions` seçeneği diff’i oturum açtığın Claude Code üzerinden işleyerek daha anlamlı sorular üretir. Soru üreten alt işlem hook’ları kapatır; bu yüzden kendi kendine yeni bir oyun görevi oluşturmaz. Bu seçenek kullanılmazsa diff Mac’ten ayrılmaz ve basit sorular tamamen yerel olarak hazırlanır. Codex veya hook sağlamayan bir terminal aracı için eski `npm run watch:agents -- --project ...` komutu kullanılabilir.
 
 ## Coin, XP, Streak ve Village Level
 
@@ -491,7 +491,7 @@ The game starts with three sample tasks: password recovery assigned to James, pr
 
 If all three tasks are completed before a new blueprint is placed, there may be no unassigned worker available to build it. The blueprint will remain on the map and wait.
 
-When the local watcher sees the first Git change, it immediately creates a pending work order. The player can choose a worker and building while the real coding session continues. Once the diff settles, the generated questions update that same work order.
+With Claude Code hooks installed, submitting a prompt immediately creates a pending work order before Claude processes it. The player can choose a worker and building while the real coding turn continues. Claude's `Stop` event generates questions from the files changed during that prompt and updates the same work order. Generic Codex and terminal tools continue to use the diff watcher as a fallback.
 
 The easiest way to test the Shop today is:
 
@@ -533,16 +533,16 @@ cd /Users/kuzeyerturk/Desktop/gamegenticAI
 npm run dev
 ```
 
-Start the watcher in a second terminal, replacing the project path with the Git repository used by Claude Code:
+In a second terminal, install the lifecycle hooks into the Git repository used by Claude Code. This only creates or updates `.claude/settings.local.json` in the target project:
 
 ```bash
 cd /Users/kuzeyerturk/Desktop/gamegenticAI
-npm run watch:agents -- --project /absolute/path/to/project --source Claude --claude-questions
+npm run install:claude-hooks -- --project /absolute/path/to/project --claude-questions
 ```
 
-Continue working normally with Claude Code in that repository. The first Git change immediately opens an unassigned task, so you can choose the worker and building while Claude is still writing. Once the diff remains stable, the watcher generates the questions. The worker follows the roads back to the Guild and the review opens on arrival.
+Restart Claude Code in that repository after installation. Use `/hooks` in Claude Code if you want to verify the `UserPromptSubmit` and `Stop` hooks. Continue working normally: submitting a prompt immediately opens an unassigned task before Claude starts processing it. When Claude finishes the turn, the files changed during that prompt become the question evidence. The worker follows the roads back to the Guild and the review opens on arrival. A prompt that changes no files removes its temporary task automatically.
 
-The `--claude-questions` option processes the selected diff through your authenticated Claude Code session. Without this option, no code is sent to an AI service and simple fallback questions are generated entirely on the Mac.
+The `--claude-questions` option processes the selected diff through your authenticated Claude Code session. The question subprocess disables hooks to prevent recursive game tasks. Without this option, no code is sent to an AI service and simple fallback questions are generated entirely on the Mac. Codex and terminal tools without lifecycle hooks can still use `npm run watch:agents -- --project ...`.
 
 ## Coins, XP, streak, and Village Level
 

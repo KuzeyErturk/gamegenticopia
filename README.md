@@ -35,9 +35,9 @@ The built-in tasks demonstrate the loop immediately. For real work, the included
 
 1. Choose your coding knowledge level from the top-right menu.
 2. Open a work order to see its source tool, affected files, and size.
-3. As soon as the watcher sees the first Git change, choose an available agent: James, Ben, Ollie, Luc, or Miguel.
+3. With Claude Code hooks installed, the moment you submit a prompt, choose an available agent: James, Ben, Ollie, Luc, or Miguel.
 4. Choose a free building or unfinished blueprint. The selected agent leaves the Builders’ Guild and follows the roads while the real coding session continues.
-5. When the diff stops changing, the questions are generated. The worker returns to the Guild along the roads and the review opens on arrival.
+5. When Claude finishes the turn, questions are generated from that turn's diff. The worker returns to the Guild along the roads and the review opens on arrival.
 6. Use those highlighted changes to answer the three-choice understanding check.
 7. Small changes complete quickly; large changes move through several logical stages.
 8. Correct answers upgrade the target and award XP and coins. Wrong answers pause progress and provide a hint.
@@ -65,7 +65,7 @@ In this first version, the sample questions are defined in [`app/game-data.ts`](
 
 The live question pipeline is:
 
-1. The local watcher notices a stable Git diff.
+1. A lifecycle adapter records that the coding turn started; the generic watcher falls back to detecting the first Git change.
 2. It reads the relevant `git diff`, file path, and a small amount of surrounding code.
 3. A model summarizes the user-visible effect and selects a question depth based on the player’s knowledge level and answer history.
 4. It returns structured data containing one question, three choices, one correct answer, and one explanation.
@@ -76,20 +76,20 @@ A useful rule for generated questions is: ask about **behavior and consequences 
 
 ## Local Claude Code and terminal integration
 
-The local companion is included. It watches a Git repository on your Mac, waits for edits to settle, collects the relevant `git diff`, generates staged questions, and sends a new work order to the game running on localhost.
+The local companion is included. For Claude Code, lifecycle hooks open the work order before Claude starts processing the prompt and finish it when Claude stops responding. The `git diff` is used for question evidence, not as the clock that decides whether the agent is working. A polling watcher remains available for Codex and ordinary terminal tools that do not expose start/stop hooks.
 
 The active setup looks like this:
 
 ```text
-Codex / Claude / terminal command
+Claude prompt submitted → work order opens immediately
               ↓
-        files are changed
+worker is selected and walks to the chosen building
               ↓
-local watcher collects the git diff
+Claude finishes the turn → that turn's diff is collected
               ↓
 Claude Code (or the local fallback) creates a checkpoint
               ↓
-Vibe Control District receives the event
+worker carries the questions back to the Guild
 ```
 
 ### Try it with a Claude Code project
@@ -101,34 +101,41 @@ cd /Users/kuzeyerturk/Desktop/gamegenticAI
 npm run dev
 ```
 
-Open `http://localhost:3000`, then start the watcher in a second terminal. Replace the example path with the Git repository you use with Claude Code:
+Open `http://localhost:3000`, then install the local lifecycle hooks into the Git repository you use with Claude Code. This writes only `.claude/settings.local.json` in that target project:
 
 ```bash
 cd /Users/kuzeyerturk/Desktop/gamegenticAI
-npm run watch:agents -- --project /absolute/path/to/your-project --source Claude --claude-questions
+npm run install:claude-hooks -- --project /absolute/path/to/your-project --claude-questions
 ```
 
-Continue using Claude Code normally in that target project. The first detected Git change immediately creates an unassigned work order in Vibe Control District, so you can choose the worker and building while Claude is still editing. After the diff stays stable for a few seconds, the watcher generates the questions. The worker then returns to the Guild and the real highlighted diff opens for review.
+Restart Claude Code in the target project after installation. You can type `/hooks` inside Claude Code to verify the `UserPromptSubmit` and `Stop` hooks. Continue working normally: submitting a prompt immediately creates an unassigned work order, and Claude's real `Stop` event finishes it. If a prompt makes no code change, its temporary work order is removed automatically. The worker always spends a short minimum time at the worksite, so tiny changes do not produce an instant turn-around animation.
 
-The companion:
+The Claude adapter:
 
 1. runs on your Mac and watches the repository path you provide
-2. creates a pending work order on the first detected Git change
-3. ignore `.git`, `node_modules`, build output, secrets, and environment files
-4. use `git diff` to send only the relevant change instead of the entire repository
-5. labels the source tool as Claude, Codex, or Terminal using the `--source` option; you still choose the in-game person
-6. waits until writing settles, then sends the generated checkpoint to the localhost game endpoint
+2. creates a pending work order from Claude Code's `UserPromptSubmit` event, before Claude processes the prompt
+3. snapshots the pre-task diff so unrelated existing changes are not treated as new work
+4. uses Claude Code's `Stop` event as the completion signal
+5. ignores `.git`, `node_modules`, build output, secrets, and environment files
+6. uses `git diff` only to build the review evidence and questions
 7. ignores common secret files such as `.env`, credentials, and private keys
 
-The `--claude-questions` option uses your installed and authenticated Claude Code CLI in non-interactive print mode to turn the selected diff into 1–4 knowledge stages. This sends the selected diff through your Claude Code session. Without that option, the watcher keeps the diff entirely on your Mac and uses deterministic fallback questions:
+The `--claude-questions` option uses your installed and authenticated Claude Code CLI in non-interactive print mode to turn the selected diff into 1–4 knowledge stages. This sends the selected diff through Claude Code. The question-generation subprocess disables hooks so it cannot create a recursive game task. Without that option, the diff stays entirely on your Mac and deterministic fallback questions are used:
 
 ```bash
-npm run watch:agents -- --project /absolute/path/to/your-project --source Claude --no-ai
+npm run install:claude-hooks -- --project /absolute/path/to/your-project --no-ai
+```
+
+For Codex, shell scripts, or any tool without a lifecycle hook, use the generic watcher instead:
+
+```bash
+npm run watch:agents -- --project /absolute/path/to/your-project --source Codex --claude-questions
 ```
 
 Useful options:
 
 - `--claude-questions` explicitly enables semantic question generation through Claude Code.
+- `npm run install:claude-hooks -- --project ...` installs exact per-prompt Claude start/stop tracking.
 - `--once` sends one stable change and exits.
 - `--settle 8000` waits eight seconds after the last edit before creating a task.
 - `--source Codex` or `--source Terminal` changes the worker label.
@@ -175,7 +182,7 @@ worker/            Cloudflare-compatible server entry
 
 The accepted architecture for the real product is documented in [`docs/LOCAL_FIRST_DIRECTION.md`](docs/LOCAL_FIRST_DIRECTION.md).
 
-- real Codex and Claude session adapters
+- a native Codex lifecycle adapter matching the Claude hook integration
 - richer session boundaries for separating several edits made to the same uncommitted diff
 - per-project villages and longer upgrade paths
 - a review screen showing what the player understood before deployment

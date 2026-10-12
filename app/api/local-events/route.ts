@@ -83,7 +83,7 @@ function readTemplate(value: unknown, templateId: string): OrderTemplate | null 
   };
 }
 
-function pendingTemplate(templateId: string, projectName: string): OrderTemplate {
+function pendingTemplate(templateId: string, projectName: string, taskSummary: string): OrderTemplate {
   const pendingQuestion: Question = {
     prompt: "What changed in this work session?",
     context: "The agent is still writing. The real question will replace this placeholder when the Git diff settles.",
@@ -93,8 +93,8 @@ function pendingTemplate(templateId: string, projectName: string): OrderTemplate
   };
   return {
     id: templateId,
-    title: `Agent working in ${projectName || "local project"}`,
-    summary: "A local coding session has started. Choose a district agent and a village project while the files are changing.",
+    title: taskSummary ? `Claude is working: ${taskSummary}` : `Agent working in ${projectName || "local project"}`,
+    summary: "The real coding turn has started. Choose a district agent and a village project while Claude is still working.",
     fileCount: 0,
     files: [],
     complexity: "Medium",
@@ -125,12 +125,24 @@ export async function POST(request: Request) {
     if (current.dismissedOrderIds.includes(orderId)) return Response.json({ ok: true, dismissed: true, orderId });
 
     const source = payload.source === "Codex" || payload.source === "Terminal" || payload.source === "New agent" ? payload.source : "Claude";
-    const phase = payload.phase === "started" ? "started" : "ready";
+    const phase = payload.phase === "started" || payload.phase === "canceled" ? payload.phase : "ready";
     const existing = current.orders.find((order) => order.id === orderId);
+
+    if (phase === "canceled") {
+      const remainingTemplates = { ...current.liveTemplates };
+      delete remainingTemplates[templateId];
+      const next: GameState = {
+        ...current,
+        orders: current.orders.filter((order) => order.id !== orderId),
+        liveTemplates: remainingTemplates,
+      };
+      await writeVillageState(LOCAL_OWNER, next);
+      return Response.json({ ok: true, phase, orderId, removed: Boolean(existing) });
+    }
 
     if (phase === "started") {
       if (existing) return Response.json({ ok: true, duplicate: true, phase, orderId });
-      const template = pendingTemplate(templateId, cleanText(payload.projectName, 100));
+      const template = pendingTemplate(templateId, cleanText(payload.projectName, 100), cleanText(payload.taskSummary, 180));
       const order: WorkOrder = {
         id: orderId,
         templateId,

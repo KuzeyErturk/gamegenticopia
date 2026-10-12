@@ -61,12 +61,12 @@ Agent work supplies the labor. Code changes determine the construction stages. T
 
 The repository now includes `npm run watch:agents`. It polls a user-selected Git repository, waits for the diff to settle, filters common secret and build paths, sends the real highlighted diff to the localhost game, and creates a new unassigned work order. Local fallback questions are the default. Semantic questions through an authenticated Claude Code installation require the explicit `--claude-questions` option.
 
-The current MVP still uses the app's existing D1-compatible village snapshot and HTTP polling. It does not yet identify exact Claude Code session boundaries or package the server and watcher into one command.
+The current MVP still uses the app's existing D1-compatible village snapshot and HTTP polling. Claude Code now has exact per-prompt boundaries through `UserPromptSubmit` and `Stop` hooks; Codex and generic terminal tools still use diff polling until equivalent lifecycle adapters are added. The server and connectors are not yet packaged into one command.
 
 ## Next implementation milestone
 
 1. Replace the Cloudflare-specific runtime with a local Node application or add a local runtime alongside it.
 2. Add SQLite storage and migrate the current village-state model.
-3. Replace polling with Claude Code hooks or a local WebSocket for exact start/stop events.
+3. Add Codex and shell lifecycle adapters, then replace browser polling with a local WebSocket.
 4. Improve diff grouping when several edits are made to one uncommitted file.
 5. Package the app as a simple CLI first; consider Tauri for a desktop release after the workflow is stable.

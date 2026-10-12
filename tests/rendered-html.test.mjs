@@ -37,10 +37,12 @@ test("shows question-specific changed code before answer choices", async () => {
 });
 
 test("includes a localhost-only Git watcher connector", async () => {
-  const [packageJson, watcher, route] = await Promise.all([
+  const [packageJson, watcher, route, hook, installer] = await Promise.all([
     read("package.json"),
     read("scripts/watch-agents.mjs"),
     read("app/api/local-events/route.ts"),
+    read("scripts/claude-hook.mjs"),
+    read("scripts/install-claude-hooks.mjs"),
   ]);
 
   assert.match(packageJson, /"watch:agents": "node scripts\/watch-agents\.mjs"/);
@@ -51,6 +53,14 @@ test("includes a localhost-only Git watcher connector", async () => {
   assert.match(route, /hostname === "localhost"/);
   assert.match(route, /Local connector is disabled on hosted deployments/);
   assert.match(route, /status: "unassigned"/);
+  assert.match(packageJson, /"install:claude-hooks": "node scripts\/install-claude-hooks\.mjs"/);
+  assert.match(hook, /input\.prompt_id/);
+  assert.match(hook, /phase: "canceled"/);
+  assert.match(hook, /baselineHashes/);
+  assert.match(installer, /UserPromptSubmit/);
+  assert.match(installer, /Stop:/);
+  assert.match(installer, /settings\.local\.json/);
+  assert.match(route, /phase === "canceled"/);
 });
 
 test("lets players choose named agents, follow roads, and clear task history", async () => {
@@ -75,9 +85,11 @@ test("lets players choose named agents, follow roads, and clear task history", a
   assert.match(css, /@keyframes roadWalk/);
   assert.match(css, /\.confirm-scrim/);
   assert.match(gameData, /"returning"/);
+  assert.match(gameData, /worksiteEnteredAt/);
   assert.match(gameData, /dismissedOrderIds: string\[\]/);
   assert.match(route, /agentName: ""/);
   assert.match(route, /phase === "started"/);
   assert.match(watcher, /phase: "started"/);
   assert.match(watcher, /phase: "ready"/);
+  assert.match(page, /now - order\.worksiteEnteredAt >= 3500/);
 });

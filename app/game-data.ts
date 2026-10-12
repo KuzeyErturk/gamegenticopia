@@ -50,6 +50,7 @@ export type WorkOrder = {
   startedAt?: number | null;
   walking?: boolean;
   travelEndsAt?: number | null;
+  worksiteEnteredAt?: number | null;
   returnStartedAt?: number | null;
   returnEndsAt?: number | null;
   external?: boolean;

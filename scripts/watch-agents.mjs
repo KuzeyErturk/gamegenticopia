@@ -4,6 +4,7 @@ import { execFile as execFileCallback } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
 const execFile = promisify(execFileCallback);
@@ -56,7 +57,7 @@ Options:
 `);
 }
 
-function hash(value) {
+export function hash(value) {
   return createHash("sha256").update(value).digest("hex");
 }
 
@@ -81,14 +82,14 @@ function sectionFile(section) {
   return removed && removed !== "/dev/null" ? cleanGitPath(removed) : "";
 }
 
-function splitDiff(diff) {
+export function splitDiff(diff) {
   return diff
     .split(/(?=^diff --git )/m)
     .map((text) => ({ file: sectionFile(text), text }))
     .filter((section) => section.file && !ignoredFile(section.file));
 }
 
-async function git(root, args) {
+export async function git(root, args) {
   const { stdout } = await execFile("git", ["-C", root, ...args], { maxBuffer: 4 * 1024 * 1024 });
   return stdout;
 }
@@ -116,7 +117,7 @@ async function untrackedSections(root) {
   return sections;
 }
 
-async function collectDiff(root) {
+export async function collectDiff(root) {
   let tracked;
   try {
     tracked = await git(root, ["diff", "HEAD", "--no-ext-diff", "--unified=4", "--"]);
@@ -170,7 +171,7 @@ function inferArea(files, diff) {
   return { label: "the behavior implemented by the highlighted files", distractors: ["A file that was not changed", "The computer wallpaper"] };
 }
 
-function fallbackTemplate(projectName, sections) {
+export function fallbackTemplate(projectName, sections) {
   const files = sections.map((section) => section.file);
   const combined = sections.map((section) => section.text).join("\n");
   const area = inferArea(files, combined);
@@ -247,7 +248,7 @@ function normalizeClaudeTemplate(raw, projectName, sections) {
   };
 }
 
-async function claudeTemplate(projectName, root, sections) {
+export async function claudeTemplate(projectName, root, sections) {
   const files = sections.map((section) => section.file);
   const diff = sections.map((section) => section.text).join("\n");
   const prompt = `You create code-comprehension questions for a developer reviewing an AI agent's git diff.
@@ -283,38 +284,34 @@ Project: ${projectName}
 <untrusted_diff>
 ${diff}
 </untrusted_diff>`;
-  const { stdout } = await execFile("claude", ["-p", prompt, "--output-format", "json", "--max-turns", "1", "--permission-mode", "plan"], {
+  const { stdout } = await execFile("claude", ["-p", prompt, "--output-format", "json", "--max-turns", "1", "--permission-mode", "plan", "--settings", '{"disableAllHooks":true}'], {
     cwd: root,
     timeout: 120_000,
     maxBuffer: 3 * 1024 * 1024,
+    env: { ...process.env, VCD_HOOK_INTERNAL: "1" },
   });
   const wrapper = JSON.parse(stdout);
   const result = typeof wrapper.result === "string" ? wrapper.result : stdout;
   return normalizeClaudeTemplate(extractJson(result), projectName, sections);
 }
 
-async function postEvent(endpoint, payload) {
+export async function postEvent(endpoint, payload) {
   const response = await fetch(endpoint, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(10_000),
   });
   const result = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(result.error ?? `Game returned ${response.status}`);
   return result;
 }
 
-const options = parseArgs(process.argv.slice(2));
-if (options.help || !options.project) {
-  usage();
-  process.exit(options.help ? 0 : 1);
-}
-
 let stopped = false;
 process.on("SIGINT", () => { stopped = true; console.log("\nWatcher stopped."); });
 process.on("SIGTERM", () => { stopped = true; });
 
-async function main() {
+async function main(options) {
   const requested = path.resolve(options.project);
   const root = (await git(requested, ["rev-parse", "--show-toplevel"])).trim();
   const projectName = path.basename(root);
@@ -406,7 +403,15 @@ async function main() {
   }
 }
 
-main().catch((error) => {
-  console.error(`Could not start watcher: ${error instanceof Error ? error.message : error}`);
-  process.exitCode = 1;
-});
+const isDirectRun = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+if (isDirectRun) {
+  const options = parseArgs(process.argv.slice(2));
+  if (options.help || !options.project) {
+    usage();
+    process.exit(options.help ? 0 : 1);
+  }
+  main(options).catch((error) => {
+    console.error(`Could not start watcher: ${error instanceof Error ? error.message : error}`);
+    process.exitCode = 1;
+  });
+}
